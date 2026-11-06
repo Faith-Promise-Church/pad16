@@ -15,7 +15,15 @@ A 16-pad sample player that runs in the browser, built to play well on an iPad. 
 
 **From the device.** Select a pad and press **Load sample** (on iPad this opens the Files app), or drop audio files on a pad. Several files at once fill pads in order. **Reset pad** puts the built-in sound back.
 
-**From this repo (kits).** Make a folder in `kits/` named after the kit and put audio files in it:
+**From this repo (kits).** The easiest way is the prep script, which takes any folder of samples and builds a kit that plays cleanly on iPad (needs ffmpeg: `brew install ffmpeg`):
+
+```
+node scripts/prepare-kit.mjs ~/Desktop/my-samples "Sunday Set"
+```
+
+It converts everything to 48 kHz WAV, trims silence before each hit and after each tail, leaves `[loop]` files untouched so the seam stays exact, matches levels to -1 dB peak, writes `kits/Sunday Set/`, and prints a summary with the iPad memory the kit will use. Options: `--mono` (half the memory), `--peak -3`, `--no-normalize`, `--no-trim`, `--replace` (rebuild a kit that already exists). Name the source files the same way as below.
+
+Or build the folder by hand. Make a folder in `kits/` named after the kit and put audio files in it:
 
 ```
 kits/
