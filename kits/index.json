@@ -1,3 +1,111 @@
 {
-  "kits": []
+  "kits": [
+    {
+      "name": "Acoustic Set",
+      "dir": "Acoustic Set",
+      "pads": [
+        {
+          "pad": 1,
+          "file": "1 Stomp.wav",
+          "name": "Stomp"
+        },
+        {
+          "pad": 2,
+          "file": "2 Group Stomp.wav",
+          "name": "Group Stomp"
+        },
+        {
+          "pad": 3,
+          "file": "3 Cajon Bass.wav",
+          "name": "Cajon Bass"
+        },
+        {
+          "pad": 4,
+          "file": "4 Djembe Bass.wav",
+          "name": "Djembe Bass"
+        },
+        {
+          "pad": 5,
+          "file": "5 Thick Kick.wav",
+          "name": "Thick Kick"
+        },
+        {
+          "pad": 6,
+          "file": "6 808 Kick.wav",
+          "name": "808 Kick"
+        },
+        {
+          "pad": 7,
+          "file": "7 Clap.wav",
+          "name": "Clap"
+        },
+        {
+          "pad": 8,
+          "file": "8 Group Clap.wav",
+          "name": "Group Clap"
+        },
+        {
+          "pad": 9,
+          "file": "9 Tambourine With Head.wav",
+          "name": "Tambourine With Head"
+        },
+        {
+          "pad": 10,
+          "file": "10 Tambourine Without Head.wav",
+          "name": "Tambourine Without Head"
+        },
+        {
+          "pad": 11,
+          "file": "11 Cajon Slap.wav",
+          "name": "Cajon Slap"
+        },
+        {
+          "pad": 12,
+          "file": "12 Snap.wav",
+          "name": "Snap"
+        },
+        {
+          "pad": 13,
+          "file": "13 Snare.wav",
+          "name": "Snare"
+        },
+        {
+          "pad": 14,
+          "file": "14 Shaker Loop [loop] [96bpm] [1bars].wav",
+          "name": "Shaker Loop",
+          "mode": "loop",
+          "bpm": 96,
+          "bars": 1
+        },
+        {
+          "pad": 15,
+          "file": "15 Shaker Forward.wav",
+          "name": "Shaker Forward"
+        },
+        {
+          "pad": 16,
+          "file": "16 Shaker Back.wav",
+          "name": "Shaker Back"
+        }
+      ],
+      "extras": [
+        {
+          "file": "Shaker Accent.wav",
+          "name": "Shaker Accent"
+        }
+      ]
+    }
+  ],
+  "padsets": [
+    {
+      "name": "Stand-in Pad",
+      "dir": "Stand-in Pad",
+      "keys": {
+        "0": {
+          "file": "Pad C [baked].wav",
+          "baked": true
+        }
+      }
+    }
+  ]
 }

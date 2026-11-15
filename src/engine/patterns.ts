@@ -7,6 +7,8 @@ export interface Pattern {
   id: string; name: string; bars: 1 | 2 | 4; grid: '16' | '3'; swing: number;
   /** Steps per beat and beats per bar the pattern was written in. */
   spb: number; bpb: number; tracks: Track[];
+  /** The meter it was written in. */
+  ts?: TimeSig;
 }
 export interface PatternEvent { beat: number; track: number; vel: number }
 /** Step values: 0 off, 1 ghost, 2 normal, 3 accent. */
@@ -37,7 +39,7 @@ export function emptyPattern(id: string, name: string, ts: TimeSig, bars: 1 | 2 
   const g = gridFor(ts, grid), n = bars * g.bpb * g.spb;
   const names: Array<[string, string]> = [['Stomp', 'stomp'], ['Cajon Bass', 'cajon-bass'], ['Clap', 'clap'], ['Cajon Slap', 'cajon-slap'],
     ['Snap', 'snap'], ['Shaker Fwd', 'shaker-forward'], ['Shaker Back', 'shaker-back'], ['Tambourine', 'tambourine-no-head']];
-  return { id, name, bars, grid, swing: 50, ...g, tracks: names.map(([nm, sid]) => ({ name: nm, src: { t: 'synth', id: sid }, level: 1, mute: false, steps: new Array(n).fill(0) })) };
+  return { id, name, bars, grid, swing: 50, ...g, ts, tracks: names.map(([nm, sid]) => ({ name: nm, src: { t: 'synth', id: sid }, level: 1, mute: false, steps: new Array(n).fill(0) })) };
 }
 
 /** Re-grid a pattern for a new length, grid or meter, keeping steps that still land on the new grid. */
@@ -54,7 +56,7 @@ export function resizePattern(p: Pattern, ts: TimeSig, bars: 1 | 2 | 4, grid: '1
     if (n > (oldN / p.spb) * g.spb) { const base = Math.round((oldN / p.spb) * g.spb); for (let s = base; s < n && base > 0; s++) steps[s] = steps[s % base]; }
     return { ...tr, steps };
   });
-  return { ...p, bars, grid, ...g, tracks };
+  return { ...p, bars, grid, ...g, ts, tracks };
 }
 
 type Row = [name: string, synth: string, steps: string, level?: number];

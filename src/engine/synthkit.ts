@@ -1,6 +1,6 @@
 // Synthesized stand-in sounds, written as plain sample math so the same code runs in the browser
 // (pattern tracks, click defaults, missing-sample fallback) and in Node (scripts/make-acoustic-kit.mjs).
-import { biquad, rng, normalize } from './dsp';
+import { biquad, rng, normalize } from './dsp.ts';
 
 type Buf = Float32Array;
 const buf = (sr: number, sec: number): Buf => new Float32Array(Math.ceil(sr * sec));

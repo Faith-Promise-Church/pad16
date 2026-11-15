@@ -1,0 +1,5 @@
+/* DIN, bundled only when fonts-private/ exists at build time (the iOS app). Never committed, never on the public site. */
+@font-face { font-family: "DIN"; font-weight: 300; font-style: normal; font-display: block; src: url("../../fonts-private/DIN-Light.otf") format("opentype"); }
+@font-face { font-family: "DIN"; font-weight: 400; font-style: normal; font-display: block; src: url("../../fonts-private/DIN-Regular.otf") format("opentype"); }
+@font-face { font-family: "DIN"; font-weight: 500; font-style: normal; font-display: block; src: url("../../fonts-private/DIN-Medium.otf") format("opentype"); }
+@font-face { font-family: "DIN"; font-weight: 700; font-style: normal; font-display: block; src: url("../../fonts-private/DIN-Bold.otf") format("opentype"); }
