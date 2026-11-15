@@ -18,6 +18,8 @@ export interface MidiBackend {
   send(portIds: string[], data: number[], atMs?: number): void;
   setClock?(segments: ClockSegment[], portIds: string[], offsets: Record<string, number>): void;
   openBluetoothPicker?(): Promise<void>;
+  /** Look for a remembered Bluetooth device and reconnect to it, on launch and after a dropout. */
+  reconnect?(name: string): void;
 }
 
 export class MockMidi implements MidiBackend {

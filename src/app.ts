@@ -394,6 +394,8 @@ export class App {
     const s = this.state.settings.midi, outs = this.midi.activeOutputs();
     const ble = [...this.backend.inputs(), ...this.backend.outputs()].find(p => p.kind === 'ble');
     if (ble && s.lastBle !== ble.name) { s.lastBle = ble.name; this.save(); }
+    // the remembered Bluetooth device is not here: ask the shell to find it again (launch, or after a dropout)
+    if (!ble && s.lastBle) this.backend.reconnect?.(s.lastBle);
     this.clockOut.enabled = s.clockOut;
     this.clockOut.ports = outs.map(p => p.id);
     this.clockOut.offsets = Object.fromEntries(outs.map(p => [p.id, s.clockOffset[p.name] || 0]));

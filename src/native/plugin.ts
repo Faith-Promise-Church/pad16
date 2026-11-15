@@ -19,6 +19,7 @@ export interface Pad16NativePlugin {
   midiSend(o: { ports: string[]; data: number[]; atMs?: number }): Promise<void>;
   midiSetClock(o: { segments: ClockSegment[]; ports: string[]; offsets: Record<string, number> }): Promise<void>;
   midiBluetoothPicker(): Promise<void>;
+  midiReconnect(o: { name: string }): Promise<void>;
   clickConfigure(o: { enabled: boolean; firstOutput: number; on: boolean; accent: number; beat: number; sub: number; offsetMs: number; master: number }): Promise<{ ok: boolean; channels: number; error?: string }>;
   clickSetSample(o: { slot: ClickKind; wavBase64: string }): Promise<void>;
   clickSync(o: { segments: NativeClickSegment[] }): Promise<void>;
@@ -73,6 +74,8 @@ export class NativeMidi implements MidiBackend {
     Native?.midiSetClock({ segments: segs, ports, offsets }).catch(() => {});
   }
   async openBluetoothPicker() { await Native?.midiBluetoothPicker(); await this.refresh(); }
+  /** Ask the shell to find and reconnect a remembered Bluetooth MIDI device by name. */
+  reconnect(name: string) { Native?.midiReconnect({ name }).catch(() => {}); }
 }
 
 /** Click played by the native shell on its own output pair, for interfaces where the web view only opens two channels. */

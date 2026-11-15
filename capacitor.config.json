@@ -1,0 +1,11 @@
+{
+  "appId": "org.faithpromise.pad16",
+  "appName": "Pad16",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0B0C0E",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false
+  }
+}

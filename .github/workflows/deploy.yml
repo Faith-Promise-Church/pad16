@@ -1,8 +1,14 @@
 name: Deploy to GitHub Pages
 
+# Publishes two builds to one Pages site:
+#   /        the main branch (the app played today)
+#   /next/   the live-rig branch (the preview of the overhaul), while that branch exists
+# Each branch is built the way it needs: a branch with package.json is installed, tested and built with Vite;
+# a branch without one is the original static app and is published as it is.
+
 on:
   push:
-    branches: [main]
+    branches: [main, live-rig]
   workflow_dispatch:
 
 permissions:
@@ -22,19 +28,53 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with: { ref: main, path: main }
+
+      - name: Check out the preview branch if it exists
+        id: next
+        run: |
+          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" live-rig >/dev/null 2>&1; then
+            git clone --depth 1 --branch live-rig "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" next
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
-      - name: Index sample kits
-        run: node scripts/build-kits.mjs
+      - name: Build each branch
+        run: |
+          set -e
+          build() {            # build <source dir> <output dir>
+            src="$1"; out="$2"
+            mkdir -p "$out"
+            if [ -f "$src/package.json" ]; then
+              (cd "$src" && npm ci && npm run typecheck && npm test && npm run build)
+              cp -R "$src/dist/." "$out/"
+            else
+              (cd "$src" && node scripts/build-kits.mjs)
+              rsync -a --exclude .git --exclude .github --exclude scripts "$src/" "$out/"
+            fi
+          }
+          build main _site
+          if [ "${{ steps.next.outputs.found }}" = "true" ]; then build next _site/next; fi
+          touch _site/.nojekyll
+          ls -la _site
+
+      - name: Browser tests on the branch that was pushed
+        if: hashFiles(format('{0}/playwright.config.ts', github.ref_name == 'main' && 'main' || 'next')) != ''
+        working-directory: ${{ github.ref_name == 'main' && 'main' || 'next' }}
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - id: deployment
         uses: actions/deploy-pages@v4

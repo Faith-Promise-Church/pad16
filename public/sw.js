@@ -2,7 +2,7 @@
 // App files: network first, cached copy when offline. Built assets, kit audio and fonts: cached after first load.
 // Only caches named 'pad16-app-*' are ever cleaned up here, so the cache of the first version ('pad16-v1') is left alone.
 const CACHE = 'pad16-app-v2';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'kits/index.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'kits/index.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];;
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))));
