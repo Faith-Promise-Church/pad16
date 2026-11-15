@@ -98,6 +98,26 @@
           "name": "Clap C"
         },
         {
+          "file": "Fast Stomp A.wav",
+          "name": "Fast Stomp A"
+        },
+        {
+          "file": "Fast Stomp B.wav",
+          "name": "Fast Stomp B"
+        },
+        {
+          "file": "Fast Stomp C.wav",
+          "name": "Fast Stomp C"
+        },
+        {
+          "file": "Fast Stomp D.wav",
+          "name": "Fast Stomp D"
+        },
+        {
+          "file": "Shaker 80 [loop] [80bpm] [8bars].wav",
+          "name": "Shaker 80"
+        },
+        {
           "file": "Shaker Accent.wav",
           "name": "Shaker Accent"
         },

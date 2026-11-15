@@ -78,7 +78,7 @@ export function songPanel(ui: UI, body: HTMLElement): () => void {
   const name = textInput({ value: '', max: 60, onInput: v => app.patchSong({ name: v }) });
   const notes = textInput({ value: '', max: 200, placeholder: 'Capo, cues, who starts', onInput: v => app.patchSong({ notes: v }) });
   const key = pickButton<number>({ title: 'Key', value: () => app.song.key, onPick: v => app.patchSong({ key: v }), options: () => NOTE_NAMES.map((n, i) => ({ value: i, label: n })) });
-  const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin', onPick: v => app.loadKit(v), options: () => [{ value: 'builtin', label: 'Built-in drums' }, ...app.bank.index.kits.map(k => ({ value: k.name, label: k.name, note: `${k.pads.length} pads` }))] });
+  const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin', onPick: v => app.loadKit(v), options: () => [{ value: 'rig', label: 'Default layout', note: 'Shaker and 15 patterns' }, ...app.bank.index.kits.map(k => ({ value: k.name, label: k.name, note: `${k.pads.length} pads` })), { value: 'builtin', label: 'Built-in drums', note: 'Synthesized' }] });
   const file = h('input', { attrs: { type: 'file', accept: '.pad16set,.zip,application/zip', hidden: '' } });
   file.addEventListener('change', async () => { const f = file.files?.[0]; file.value = ''; if (!f) return; try { await app.importSetFile(await f.arrayBuffer()); app.toast('Set imported.'); } catch { app.toast('That file is not a Pad16 set.'); } });
   const exp = btn({ label: 'Export set', icon: 'export', onClick: async () => {

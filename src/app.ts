@@ -11,7 +11,7 @@ import { KV, openKV } from './store/db';
 import { loadState, STATE_KEY } from './store/migrate';
 import { exportSet, importSet } from './store/exportimport';
 import {
-  AppState, Song, SetList, PadConfig, Routing, SampleRef, defaultPad, defaultRouting, defaultSong, normalizeRouting, uid, MidiAction, SUB_PRESETS, BusId,
+  AppState, Song, SetList, PadConfig, Routing, SampleRef, defaultPad, rigPads, RIG_KIT, defaultRouting, defaultSong, normalizeRouting, uid, MidiAction, SUB_PRESETS, BusId,
 } from './store/model';
 import { MidiManager } from './midi/manager';
 import { ClockOut } from './midi/clockout';
@@ -275,6 +275,13 @@ export class App {
     const my = ++this.offlineToken, urls = new Set<string>();
     const kit = this.bank.index.kits.find(k => k.name === this.song.kit);
     if (kit) for (const e of [...kit.pads, ...(kit.extras || [])]) urls.add(kitUrl(kit.dir, e.file));
+    // every kit file a pad or one of its pattern tracks points at, whichever kit it lives in
+    const want = (r: SampleRef) => { const k = this.realSample(r); if (k.t === 'kit') urls.add(kitUrl(k.kit, k.file)); };
+    for (const pad of this.song.pads) {
+      want(pad.src);
+      const pat = pad.mode === 'pattern' ? this.state.patterns.find(x => x.id === pad.patternId) : undefined;
+      if (pat) for (const t of pat.tracks) if (t.src.t !== 'pad' && t.steps.some(Boolean)) want(t.src as SampleRef);
+    }
     const cs = this.clickSet; if (cs) for (const f of Object.values(cs.files)) if (f) urls.add(kitUrl(cs.dir, f));
     const ps = this.eng.tonic.set; if (ps) for (const k of Object.values(ps.keys)) urls.add(kitUrl(ps.dir, k.file));
     this.offline = { done: 0, total: urls.size, active: true }; this.emit();
@@ -337,25 +344,28 @@ export class App {
     else if (loaded > 1) this.toast(`Loaded ${loaded} samples onto pads ${start + 1} to ${start + loaded}.`);
     this.changed();
   }
-  resetPad(i: number): void { this.patchPad(i, defaultPad(i)); }
+  /** Back to this pad's place in the default layout. */
+  resetPad(i: number): void { this.patchPad(i, rigPads()[i]); }
 
-  /** Put a kit from the repo on the pads. 'builtin' restores the built-in drums. */
+  /** Put a kit on the pads: 'rig' is the default layout, 'builtin' the first version's synthesized drums, anything else a kit from the repo. */
   async loadKit(name: string): Promise<void> {
     const s = this.song;
-    if (name === 'builtin') { s.kit = ''; s.pads = s.pads.map((_, i) => defaultPad(i)); }
+    if (name === RIG_KIT) { s.kit = RIG_KIT; s.pads = rigPads(); }
+    else if (name === 'builtin') { s.kit = ''; s.pads = s.pads.map((_, i) => defaultPad(i)); }
     else {
       const k = this.bank.index.kits.find(x => x.name === name); if (!k) return;
       s.kit = k.name; s.pads = this.kitPads(k);
     }
     this.changed();
-    this.toast(name === 'builtin' ? 'Built-in drums loaded.' : `Loading ${name}`, name === 'builtin' ? 3000 : 0);
+    const label = name === RIG_KIT ? 'the default layout' : name === 'builtin' ? 'the built-in drums' : name;
+    this.toast(`Loading ${label}`, 0);
     const my = ++this.loadToken;
     await Promise.all(s.pads.map((cfg, i) => this.loadPad(i, cfg, my)));
     // loops without a tempo tag: measure them now that they are decoded
     s.pads.forEach((cfg, i) => { if (cfg.mode === 'loop' && cfg.sync !== 'off' && !cfg.sourceBpm) this.detectPad(i, k2name(cfg)); });
     const miss = this.padMeta.filter(m => m.missing).length;
     this.saveForOffline();
-    if (name !== 'builtin') this.toast(miss ? `Loaded ${name}. ${miss} file${miss === 1 ? '' : 's'} could not be read and play a stand-in.` : `Loaded ${name}.`);
+    this.toast(miss ? `Loaded ${label}. ${miss} file${miss === 1 ? '' : 's'} could not be read and play a stand-in.` : `Loaded ${label}.`);
     function k2name(c: PadConfig) { return c.src.t === 'kit' ? c.src.file : c.name; }
   }
   private kitPads(k: KitInfo): PadConfig[] {

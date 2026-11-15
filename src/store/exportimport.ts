@@ -4,7 +4,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { KV } from './db';
 import { AppState, SampleRef, SetList, Song, normalizeSong, uid } from './model';
 import { audioKey, StoredAudio } from './migrate';
-import { Pattern } from '../engine/patterns';
+import { Pattern, upgradePattern } from '../engine/patterns';
 
 interface SetFile { format: 'pad16-set'; version: 1; set: SetList; songs: Song[]; patterns: Pattern[]; audio: Record<string, string> }
 
@@ -53,7 +53,7 @@ export async function importSet(bytes: Uint8Array, state: AppState, kv: KV): Pro
   }
   const mapRef = <T extends { t: string }>(r: T): T => (r.t === 'audio' && audioMap.has((r as any).id) ? { ...r, id: audioMap.get((r as any).id)! } : r);
   const patMap = new Map<string, string>();
-  for (const p of doc.patterns || []) {
+  for (const p of (doc.patterns || []).map(upgradePattern)) {
     const same = state.patterns.find(x => x.id === p.id);
     const copy: Pattern = { ...p, tracks: p.tracks.map(t => ({ ...t, src: mapRef(t.src) })) };
     if (same && JSON.stringify(same) === JSON.stringify(copy)) continue;

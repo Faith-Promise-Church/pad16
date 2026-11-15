@@ -12,6 +12,8 @@ interface LiveSrc { src: AudioBufferSourceNode; bufferBpm: number; end: number }
 interface Run {
   startBeat: number; stopBeat: number | null; fadeFrom: number | null;
   gain: GainNode; sched: number; len: number; live: Set<LiveSrc>; clockRun: number;
+  /** Last hit on each choking pattern track, so the next hit can cut it. */
+  choke: Map<number, { src: AudioBufferSourceNode; g: GainNode; level: number }>;
 }
 interface Voice { src: AudioBufferSourceNode; g: GainNode }
 export interface PadRt {
@@ -122,7 +124,7 @@ export class PadPlayer implements Source {
     }
     const gain = e.ctx.createGain();
     gain.connect(this.bus(p));
-    p.run = { startBeat, stopBeat: null, fadeFrom: null, gain, sched: startBeat, len, live: new Set(), clockRun: e.clock.run };
+    p.run = { startBeat, stopBeat: null, fadeFrom: null, gain, sched: startBeat, len, live: new Set(), clockRun: e.clock.run, choke: new Map() };
     if (p.cfg.group) {
       for (const o of this.pads) {
         if (o === p || o.cfg.group !== p.cfg.group || !o.run) continue;
@@ -195,8 +197,15 @@ export class PadPlayer implements Source {
         const buffer = this.trackBuffer(pat.tracks[ev.track].src); if (!buffer) continue;
         const t = e.clock.timeAt(b); if (t < now - 0.03) continue;
         const src = e.ctx.createBufferSource(), g = e.ctx.createGain();
-        src.buffer = buffer; g.gain.value = ev.vel * p.cfg.volume;
-        src.connect(g); g.connect(r.gain); src.start(Math.max(t, now));
+        const level = ev.vel * p.cfg.volume, at = Math.max(t, now);
+        src.buffer = buffer; g.gain.value = level;
+        src.connect(g); g.connect(r.gain); src.start(at);
+        if (pat.tracks[ev.track].choke) {
+          // cut the hit before this one with a 4 ms fade that ends as the new hit starts
+          const prev = r.choke.get(ev.track);
+          if (prev) { try { prev.g.gain.setValueAtTime(prev.level, Math.max(now, at - 0.004)); prev.g.gain.linearRampToValueAtTime(0, Math.max(now + 0.001, at)); prev.src.stop(at + 0.01); } catch { /* already ended */ } }
+          r.choke.set(ev.track, { src, g, level });
+        }
         src.onended = () => { try { g.disconnect(); } catch { /* fine */ } };
       }
       return;

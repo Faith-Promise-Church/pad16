@@ -1,7 +1,7 @@
 // The saved shape of everything: songs, sets, patterns, settings. Plain JSON.
 import { TimeSig, Quant, Subdivision } from '../engine/time';
 import { PadMode } from '../engine/tags';
-import { Pattern, starterPatterns } from '../engine/patterns';
+import { Pattern, starterPatterns, upgradePattern, RIG_PAD_PATTERNS } from '../engine/patterns';
 
 export type SampleRef = { t: 'none' } | { t: 'builtin'; i: number } | { t: 'synth'; id: string } | { t: 'kit'; kit: string; file: string } | { t: 'audio'; id: string };
 export type SyncMode = 'stretch' | 'repitch' | 'off';
@@ -78,6 +78,14 @@ export const defaultPad = (i: number): PadConfig => ({
   name: '', src: { t: 'builtin', i }, volume: 0.9, pitch: 0, mode: 'oneshot', sync: 'repitch', sourceBpm: 0, lengthBeats: 0, conf: 0,
   quantize: 'global', stopMode: 'quantized', fadeBeats: 4, group: '', patternId: '',
 });
+/** The default layout: the 80 BPM shaker on pad 1, then tambourine, clap, cajon, kick and stomp patterns on pads 2 to 16. */
+export const RIG_KIT = 'rig';
+export function rigPads(): PadConfig[] {
+  const group = (i: number): Group => (i === 1 || i === 2 ? 'A' : i >= 4 && i <= 7 ? 'B' : i >= 8 && i <= 14 ? 'C' : '');
+  return Array.from({ length: 16 }, (_, i): PadConfig => i === 0
+    ? { ...defaultPad(0), name: 'Shaker', src: { t: 'kit', kit: 'Acoustic Set', file: 'Shaker 80 [loop] [80bpm] [8bars].wav' }, mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32, conf: 1 }
+    : { ...defaultPad(i), src: { t: 'none' }, mode: 'pattern', patternId: RIG_PAD_PATTERNS[i - 1], group: group(i) });
+}
 export const defaultClick = (): ClickSettings => ({ on: false, sub: 'off', accent: 1, beat: 0.8, subLevel: 0.5, countIn: 0, samples: {} });
 export const defaultSub = (): SubSettings => ({
   on: false, preset: 'Pure Sub', params: { ...SUB_PRESETS['Pure Sub'] }, lo: 21, hi: 47, level: 0.8, pedal: true, cc1: 'cutoff', cc11: 'level', bend: 'pitch',
@@ -91,7 +99,7 @@ export const defaultRouting = (): Routing => ({
   },
 });
 export const defaultSong = (name = 'New song'): Song => ({
-  id: uid(), name, bpm: 96, ts: { num: 4, den: 4 }, key: 0, kit: '', pads: Array.from({ length: 16 }, (_, i) => defaultPad(i)),
+  id: uid(), name, bpm: 80, ts: { num: 4, den: 4 }, key: 0, kit: RIG_KIT, pads: rigPads(),
   quantize: 'bar', click: defaultClick(), sub: defaultSub(), tonic: defaultTonic(), notes: '',
 });
 export const defaultSettings = (): Settings => ({
@@ -117,7 +125,7 @@ export function normalizeState(raw: any): AppState {
   const settings: Settings = { ...dset, ...rs, midi: { ...dset.midi, ...(rs.midi || {}), padZone: { ...dset.midi.padZone, ...(rs.midi?.padZone || {}) } }, routingByDevice: rs.routingByDevice || {} };
   for (const k of Object.keys(settings.routingByDevice)) settings.routingByDevice[k] = normalizeRouting(settings.routingByDevice[k]);
   const starters = starterPatterns();
-  const patterns: Pattern[] = Array.isArray(raw.patterns) ? raw.patterns : [];
+  const patterns: Pattern[] = (Array.isArray(raw.patterns) ? raw.patterns : []).map(upgradePattern);
   for (const sp of starters) if (!patterns.some(p => p.id === sp.id)) patterns.push(sp);
   const currentSet = sets.some(s => s.id === raw.currentSet) ? raw.currentSet : sets[0].id;
   const currentSong = songs.some(s => s.id === raw.currentSong) ? raw.currentSong : songs[0].id;

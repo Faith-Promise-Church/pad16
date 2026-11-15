@@ -4,6 +4,7 @@ A live rhythm-section tool for acoustic sets. One keyboard player and one guitar
 
 - **16 pads**: one shots, hold, loops and drum-machine patterns
 - **Master tempo** with tap, time signatures (including 6/8, 9/8 and 12/8) and a count-in
+- **A step sequencer** with 8 tracks and 8 levels per step: tap a step on or off, drag up or down for its level
 - **Loops that snap to the tempo**: Stretch (pitch kept), Repitch (cleanest on drums) or Off
 - **Quantized launch and stop**, the way a clip launcher works, with exclusive groups for seamless groove changes
 - **Click** with its own bus and its own output, so it can stay out of the house mix

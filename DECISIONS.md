@@ -100,3 +100,13 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 55. **Kit audio is served from the offline cache first and refreshed in the background.** Nothing on stage waits on a network. A sample replaced under the same file name is heard on the launch after the next online launch. The page itself gives the network 3 seconds before using its cached copy.
 56. **The web app saves the current kit, click set and all 12 keys of the selected pad set for offline** while it is online, so a key change never needs the network.
 57. **Pad low cut**: the tonic pad's high-pass is now "Low cut", first in its Tone section, 20 to 800 Hz, off by default.
+
+## Default layout and the pattern programmer
+
+58. **A new song opens on Justin's default layout** (shaker loop on pad 1, 15 patterns on pads 2 to 16) at 80 BPM, the tempo of the shaker and click he supplied. It is also "Default layout" in the Kit menu. Songs he already saved are not touched. Pads carried over from the first version still sit on the built-in drums.
+59. **Steps hold a level from 1 to 8** instead of ghost, normal, accent, so a figure can build across a bar. Tap turns a step on or off; dragging up or down sets the level. Saved patterns are converted once (ghost 3, normal 6, accent 8), which keeps their sound.
+60. **Kick loops use the Thick Kick sample** (MAMMOTH 34): it is the punchiest low hit he supplied, reaching -20 dB in 0.15 seconds. The stomp on pad 16 rotates the four FAST STOMP takes, one per bar.
+61. **Tracks can choke.** A new hit cuts the previous hit on the same track with a 4 ms fade, like a real kick or a hand on a cajon. It is on for the kick and cajon tracks in the default patterns.
+62. **The 80 BPM shaker stays 8 bars long** instead of being cut to a shorter loop, to keep the player's own variation. It is set to Stretch; at 80 it plays untouched.
+63. **Syncopated kick, the part left open in the request ("..."):** the bar ends with a kick on the and of 4 as a pickup into the next downbeat.
+64. **TRAPPY TAMBO SNARE took the Snare slot** (pad 13 of the Acoustic Set), which was still a stand-in.

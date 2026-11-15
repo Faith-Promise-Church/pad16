@@ -187,7 +187,7 @@ h2, p { margin: 0; }
 /* ---------- sheets ---------- */
 .scrim { position: fixed; inset: 0; z-index: 10; display: flex; align-items: flex-end; justify-content: center; background: var(--scrim); padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px); }
 .sheet { display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(100%, var(--w-sheet)); max-height: 88%; background: var(--surface); border: var(--hair) solid var(--hairline); border-bottom: 0; border-radius: var(--r-pad) var(--r-pad) 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
-.sheet.tall { height: 88%; width: min(100%, calc(var(--w-sheet) * 1.5)); }
+.sheet.tall { height: 88%; width: min(100%, var(--w-sheet-wide)); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--u); padding: var(--u) var(--u) var(--u) calc(var(--u) * 2); border-bottom: var(--hair) solid var(--hairline); }
 .sheet-title { font-size: var(--fs-title); font-weight: var(--w-medium); }
 .sheet-body { display: grid; gap: calc(var(--u) * 2); align-content: start; overflow-y: auto; padding: calc(var(--u) * 2); -webkit-overflow-scrolling: touch; }
@@ -220,10 +220,10 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 .step { height: var(--touch); padding: 0; border: var(--hair) solid var(--hairline); border-radius: calc(var(--r-ctl) / 2); background: var(--bg); position: relative; }
 .step.beat { border-color: var(--hairline-strong); }
 .step.bar { margin-left: var(--u); }
-.step::after { content: ""; position: absolute; left: 20%; right: 20%; bottom: 15%; border-radius: calc(var(--r-ctl) / 4); background: var(--text); height: 0; }
-.step[data-v="1"]::after { height: 22%; background: var(--text-2); }
-.step[data-v="2"]::after { height: 48%; }
-.step[data-v="3"]::after { height: 70%; left: 10%; right: 10%; }
+.step { touch-action: pan-x; }
+.step::after { content: ""; position: absolute; left: 18%; right: 18%; bottom: 12%; border-radius: calc(var(--r-ctl) / 4); background: var(--text); height: calc(var(--lv, 0) * 76%); }
+.step[data-v="1"]::after, .step[data-v="2"]::after, .step[data-v="3"]::after { background: var(--text-2); }
+.step[data-v="8"]::after { left: 8%; right: 8%; }
 .step[data-now="true"] { border-color: var(--playing); }
 
 /* ---------- keys strip ---------- */

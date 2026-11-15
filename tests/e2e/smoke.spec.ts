@@ -14,7 +14,10 @@ for (const size of SIZES) {
       await page.goto('/');
       await page.waitForSelector('html[data-ready="true"]');
       await expect(page.locator('.pad')).toHaveCount(16);
-      await expect(page.locator('.bpm-num')).toHaveText('96');
+      await expect(page.locator('.bpm-num')).toHaveText('80');
+      // a fresh install opens on the default layout; this test plays the built-in one shots
+      await expect(page.locator('.pad').first().locator('.pad-name')).toHaveText('Shaker');
+      await app(page, 'a => a.loadKit("builtin")');
       expect(await app(page, 'a => a.eng.pads.pads.filter(p => p.buffer).length')).toBe(16);
 
       // first touch unlocks audio and plays the pad
@@ -66,7 +69,7 @@ for (const size of SIZES) {
 
 test.describe('stage behavior', () => {
   test.use({ viewport: { width: 1366, height: 1024 }, hasTouch: true });
-  test.beforeEach(async ({ page }) => { await page.goto('/'); await page.waitForSelector('html[data-ready="true"]'); await page.locator('.pad').first().tap(); });
+  test.beforeEach(async ({ page }) => { await page.goto('/'); await page.waitForSelector('html[data-ready="true"]'); await app(page, 'a => a.loadKit("builtin")'); await page.locator('.pad').first().tap(); });
 
   test('a pattern pad launches on the bar and can be edited while playing', async ({ page }) => {
     await app(page, 'a => a.patchPad(5, { mode: "pattern", patternId: "starter-stomp-clap" })');
@@ -150,6 +153,49 @@ test.describe('stage behavior', () => {
     expect(n).toBe(2);
     expect(await app(page, 'a => a.setSongs.map(s => s.name)')).toEqual(['My pads', 'Second']);
   });
+  test('the default layout: stretched shaker on pad 1 and patterns on pads 2 to 16', async ({ page }) => {
+    await app(page, 'a => a.loadKit("rig")');
+    await expect(page.locator('.pad .pad-name')).toHaveText(['Shaker', 'Tambo 2 and 4', 'Tambo on 4', 'Claps 2 and 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time',
+      'Kick on 1', 'Kick 1 and 3', 'Kick Syncopated', 'Four on the Floor', 'Worship Kick A', 'Worship Kick B', 'Kick Build', 'Stomp on 1']);
+    expect(await app(page, 'a => a.padMeta.filter(m => m.missing).length')).toBe(0);
+    expect(await app(page, 'a => { const p = a.eng.pads.pads[0]; return [p.cfg.sync, p.cfg.sourceBpm, Math.round(p.buffer.duration * 100) / 100]; }')).toEqual(['stretch', 80, 24]);
+    // every sample the patterns use is found: real recordings, no silent tracks
+    expect(await app(page, `async a => { const out = []; for (const id of ['rig-cajon-1', 'rig-clap-2-4', 'rig-stomp-1', 'rig-kick-build', 'rig-tambo-4']) { const p = a.state.patterns.find(x => x.id === id);
+      for (const t of p.tracks) if (t.steps.some(Boolean)) { const r = await a.bank.resolve(a.realSample(t.src)); out.push(r.missing || !r.buffer || a.realSample(t.src).t !== 'kit'); } } return out; }`)).not.toContain(true);
+    // at 80 the shaker needs no stretching; at another tempo it renders a stretched copy
+    await expect.poll(() => app(page, 'a => a.padMeta[0].stretch')).toBe('ready');
+    await page.locator('.pad').nth(0).tap();
+    await expect(page.locator('.run-btn')).toHaveAttribute('data-running', 'true');
+    await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing', { timeout: 3000 });
+    await expect.poll(() => app(page, 'a => a.eng.mixer.level("loops") > 0.003'), { timeout: 4000 }).toBe(true);
+    // kick loops share a group: starting one stops the other on the bar line
+    await page.locator('.pad').nth(8).tap();
+    await expect(page.locator('.pad').nth(8)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
+    await expect.poll(() => app(page, 'a => a.eng.mixer.level("drums") > 0.02'), { timeout: 5000 }).toBe(true);
+    await page.locator('.pad').nth(14).tap();
+    await expect(page.locator('.pad').nth(14)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
+    await expect(page.locator('.pad').nth(8)).toHaveAttribute('data-state', 'stopped');
+    await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing');
+    await app(page, 'a => a.patchSong({ bpm: 86 })');
+    await expect.poll(() => app(page, 'a => a.padMeta[0].stretch + ":" + (a.eng.pads.pads[0].stretched || {}).bpm'), { timeout: 30000 }).toBe('ready:86');
+    expect(await app(page, 'a => a.stretchWarning(0)')).toBe(false);
+  });
+  test('sequencer steps toggle with a tap and take a level from 1 to 8 with a drag', async ({ page }) => {
+    await app(page, 'a => a.loadKit("rig")');
+    await app(page, 'a => { a.selected = 14; a.state.settings.edit = true; a.changed(); }');
+    await page.locator('.editor .btn', { hasText: 'Edit pattern' }).click();
+    const steps = page.locator('.seq-row').first().locator('.step');
+    await expect(steps).toHaveCount(16);
+    expect(await steps.evaluateAll(els => els.map(e => +(e as HTMLElement).dataset.v!))).toEqual([8, 0, 2, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0]);
+    await steps.nth(1).click();
+    await expect(steps.nth(1)).toHaveAttribute('data-v', '6');
+    const box = (await steps.nth(1).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 4 }); await page.mouse.up();
+    expect(await app(page, 'a => a.state.patterns.find(p => p.id === "rig-kick-build").tracks[0].steps[1]')).toBe(2);
+    await steps.nth(1).click();
+    await expect(steps.nth(1)).toHaveAttribute('data-v', '0');
+  });
   test('the click can be the stock sound or the click set from the repo', async ({ page }) => {
     expect(await app(page, 'a => a.bank.index.clicksets.map(c => c.name)')).toEqual(['Justin Click']);
     expect(await app(page, 'a => a.clickSet.name')).toBe('Justin Click');            // a supplied click wins until told otherwise
@@ -169,6 +215,7 @@ test.describe('stage behavior', () => {
     expect(await app(page, 'a => a.realSample({ t: "synth", id: "cajon-slap" })')).toEqual({ t: 'kit', kit: 'Acoustic Set', file: '11 Cajon Slap.wav' });
     expect(await app(page, 'a => a.realSample({ t: "synth", id: "click-beat" })')).toEqual({ t: 'synth', id: 'click-beat' });
     expect(await app(page, 'a => a.bank.index.kits.map(k => [k.name, k.pads.length])')).toEqual([['Acoustic Set', 16], ['Cajon Slaps', 11]]);
+    expect(await app(page, 'a => a.realSample({ t: "synth", id: "thick-kick" }).file')).toBe('5 Thick Kick.wav');
   });
   test('edit lock blocks editing, and the daylight theme applies', async ({ page }) => {
     await page.locator('[title="Edit pads"]').tap();

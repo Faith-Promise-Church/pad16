@@ -24,6 +24,7 @@ Branch: `live-rig`. Never push to `main`.
 - Preview is live at `/next/` (the github-pages environment now allows `live-rig`).
 - Justin's samples are in: Acoustic Set (real stomp, thick kick, clap, tambourines, cajon, snap, shaker loop), Cajon Slaps (11 hits to audition), Justin Click (click set), and two pad sets in all 12 major keys.
 - Click sound switch (Built-in or a click set), pad low cut, offline saving of pad files, patterns use real samples.
+- Default layout: the 80 BPM shaker on pad 1 and 15 programmed patterns (tambourine, claps, four cajon loops, seven kick loops, stomp). Pattern steps now have 8 levels, and tracks can choke.
 
 ## Tests (all passing at the last commit)
 

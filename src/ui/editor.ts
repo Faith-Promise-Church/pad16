@@ -4,7 +4,7 @@ import type { UI, View } from './views';
 import { h, btn, fader, stepper, segmented, field, textInput, pickButton, openSheet, pickSheet, pct, icon, clear } from './kit';
 import { QUANTS, QUANT_LABEL, Quant, beatsPerBar } from '../engine/time';
 import { confidenceLabel } from '../engine/detect';
-import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc } from '../engine/patterns';
+import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc, LEVELS, LEVEL_NORMAL, stepVel } from '../engine/patterns';
 import { SOUNDS } from '../engine/synthkit';
 import { Group, StopMode, SyncMode, uid } from '../store/model';
 import { PadMode } from '../engine/tags';
@@ -158,12 +158,31 @@ export function openSequencer(ui: UI, patternId: string): void {
         const row: HTMLButtonElement[] = [];
         for (let s = 0; s < patternSteps(p); s++) {
           const b = h('button', { class: 'step' + (s % p.spb === 0 ? ' beat' : '') + (s > 0 && s % (p.spb * p.bpb) === 0 ? ' bar' : ''), attrs: { type: 'button', 'data-v': String(tr.steps[s] | 0), 'aria-label': `${tr.name} step ${s + 1}` } });
-          b.addEventListener('click', () => {
-            // off, normal, accent, ghost, off
-            const q = get()!, cur = q.tracks[ti].steps[s] | 0, nv = cur === 0 ? 2 : cur === 2 ? 3 : cur === 3 ? 1 : 0;
-            q.tracks[ti].steps[s] = nv; b.dataset.v = String(nv); set(q);
-            if (nv) { const buf = app.eng.pads.trackBuffer(q.tracks[ti].src); if (buf && !app.eng.transport.running) { const src = app.ctx.createBufferSource(), g = app.ctx.createGain(); src.buffer = buf; g.gain.value = [0, 0.35, 0.75, 1][nv]; src.connect(g); g.connect(app.eng.mixer.input('drums')); src.start(); } }
+          // tap turns a step on or off; drag up or down sets its level, 1 to 8
+          const paint = (v: number) => { b.dataset.v = String(v); b.style.setProperty('--lv', String(v / LEVELS)); b.setAttribute('aria-label', `${tr.name} step ${s + 1}, ${v ? 'level ' + v : 'off'}`); };
+          const put = (v: number, audition: boolean) => {
+            const q = get()!; if ((q.tracks[ti].steps[s] | 0) === v) return;
+            q.tracks[ti].steps[s] = v; paint(v); set(q);
+            if (audition && v && !app.eng.transport.running) { const buf = app.eng.pads.trackBuffer(q.tracks[ti].src); if (buf) { const src = app.ctx.createBufferSource(), g = app.ctx.createGain(); src.buffer = buf; g.gain.value = stepVel(v) * q.tracks[ti].level; src.connect(g); g.connect(app.eng.mixer.input('drums')); src.start(); } }
+          };
+          let y0 = 0, v0 = 0, moved = false, down = false;
+          b.addEventListener('pointerdown', e => { down = true; moved = false; y0 = e.clientY; v0 = get()!.tracks[ti].steps[s] | 0; try { b.setPointerCapture(e.pointerId); } catch { /* fine */ } });
+          b.addEventListener('pointermove', e => {
+            if (!down) return;
+            const dy = y0 - e.clientY;
+            if (!moved && Math.abs(dy) < 6) return;
+            moved = true;
+            put(Math.min(LEVELS, Math.max(1, (v0 || LEVEL_NORMAL) + Math.round(dy / 7))), false);
           });
+          b.addEventListener('pointerup', () => { if (!down) return; down = false; if (moved) put(get()!.tracks[ti].steps[s] | 0, false); else put(v0 ? 0 : LEVEL_NORMAL, true); });
+          b.addEventListener('pointercancel', () => { down = false; });
+          b.addEventListener('keydown', e => {
+            const cur = get()!.tracks[ti].steps[s] | 0;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); put(cur ? 0 : LEVEL_NORMAL, true); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); put(Math.min(LEVELS, (cur || LEVEL_NORMAL - 1) + 1), true); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); put(Math.max(1, (cur || LEVEL_NORMAL + 1) - 1), true); }
+          });
+          paint(tr.steps[s] | 0);
           steps.append(b); row.push(b);
         }
         stepEls.push(row);
@@ -175,7 +194,7 @@ export function openSequencer(ui: UI, patternId: string): void {
     build();
     body.append(
       h('div', { class: 'two' }, field('Name', name.el), field('Length', barsSeg.el), field('Grid', gridSeg.el), field('Swing', swing.el)),
-      h('div', { class: 'row' }, play, fit, h('span', { class: 'help', text: 'Tap a step to cycle: normal, accent, ghost, off. Edits are heard on the next pass, even while playing.' })),
+      h('div', { class: 'row' }, play, fit, h('span', { class: 'help', text: 'Tap a step to turn it on or off. Drag up or down on a step to set its level, from 1 (softest) to 8 (accent). Edits are heard on the next pass, even while playing.' })),
       seq);
     return () => { /* state is pushed from here; nothing to pull */ };
   }, { tall: true, id: 'sheet-sequencer' });

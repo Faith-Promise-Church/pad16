@@ -29,7 +29,8 @@ describe('saved data migration', () => {
     const { state, migrated } = await loadState(kv);
     expect(migrated).toBe(true);
     const song = state.songs[0];
-    expect(song.kit).toBe('Sunday Loops');
+    expect(song.kit).toBe('Sunday Loops'); expect(song.bpm).toBe(96);
+    expect(song.pads[7]).toMatchObject({ mode: 'oneshot', src: { t: 'builtin', i: 7 } });   // untouched old pads stay on the built-in drums
     expect(song.pads[0]).toMatchObject({ name: 'Kick', volume: 0.5, mode: 'hold', src: { t: 'builtin', i: 0 } });
     expect(song.pads[2]).toMatchObject({ name: 'My Loop', volume: 1.2, pitch: -3, mode: 'loop', sync: 'off' });
     expect(song.pads[2].src.t).toBe('audio');
@@ -60,7 +61,8 @@ describe('saved data migration', () => {
   });
   it('starts clean with no old data and with no IndexedDB at all', async () => {
     const { state, migrated } = await loadState(await openKV(new IDBFactory()));
-    expect(migrated).toBe(false); expect(state.songs.length).toBe(1); expect(state.patterns.length).toBe(6);
+    expect(migrated).toBe(false); expect(state.songs.length).toBe(1); expect(state.patterns.length).toBe(21);
+    expect(state.songs[0].pads[0]).toMatchObject({ name: 'Shaker', mode: 'loop' });      // a fresh install gets the default layout
     const mem = await loadState(memoryKV());
     expect(mem.state.songs[0].pads.length).toBe(16);
   });
