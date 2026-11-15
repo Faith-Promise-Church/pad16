@@ -1,7 +1,7 @@
 // Keeps Pad16 playable offline once it has been opened online.
-// App files: network first, cached copy when offline. Built assets, kit audio and fonts: cached after first load.
+// App files and kit audio: network first, cached copy when offline. Built assets and fonts: cached after first load.
 // Only caches named 'pad16-app-*' are ever cleaned up here, so the cache of the first version ('pad16-v1') is left alone.
-const CACHE = 'pad16-app-v2';
+const CACHE = 'pad16-app-v3';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'kits/index.json', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];;
 
 self.addEventListener('install', e => {
@@ -20,13 +20,15 @@ self.addEventListener('fetch', e => {
   const scope = new URL(self.registration.scope).pathname;
   if (!url.pathname.startsWith(scope)) return;
   const rel = url.pathname.slice(scope.length);
-  const immutable = rel.startsWith('assets/') || (rel.startsWith('kits/') && !rel.endsWith('index.json'));
-  if (immutable) {
+  // Built assets have a hash in their name, so a cached copy is always right.
+  if (rel.startsWith('assets/')) {
     e.respondWith(caches.open(CACHE).then(c => c.match(req).then(hit => hit || fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }))));
     return;
   }
+  // Everything else, kit audio included, is network first: a sample replaced under the same file name
+  // shows up on the next online launch, and the cached copy plays when offline.
   e.respondWith(fetch(req).then(res => {
     if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
     return res;
-  }).catch(() => caches.open(CACHE).then(c => c.match(req).then(hit => hit || c.match('index.html')))));
+  }).catch(() => caches.open(CACHE).then(c => c.match(req).then(hit => hit || (req.mode === 'navigate' ? c.match('index.html') : Response.error())))));
 });
