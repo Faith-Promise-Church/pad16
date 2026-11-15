@@ -21,11 +21,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Install, test and build. Runs for every push, even when the deploy below is not allowed for the branch.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with: { ref: main, path: main }
@@ -76,5 +74,14 @@ jobs:
         with:
           path: _site
 
+  # Publishing needs the github-pages environment to allow the branch:
+  # Settings, Environments, github-pages, Deployment branches and tags.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
