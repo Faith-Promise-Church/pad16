@@ -71,11 +71,11 @@
         },
         {
           "pad": 14,
-          "file": "14 Shaker Loop [loop] [96bpm] [1bars].wav",
+          "file": "14 Shaker Loop [loop] [113bpm] [2bars].wav",
           "name": "Shaker Loop",
           "mode": "loop",
-          "bpm": 96,
-          "bars": 1
+          "bpm": 113,
+          "bars": 2
         },
         {
           "pad": 15,
@@ -90,21 +90,179 @@
       ],
       "extras": [
         {
+          "file": "Clap B.wav",
+          "name": "Clap B"
+        },
+        {
+          "file": "Clap C.wav",
+          "name": "Clap C"
+        },
+        {
           "file": "Shaker Accent.wav",
           "name": "Shaker Accent"
+        },
+        {
+          "file": "Tambourine Short.wav",
+          "name": "Tambourine Short"
+        }
+      ]
+    },
+    {
+      "name": "Cajon Slaps",
+      "dir": "Cajon Slaps",
+      "pads": [
+        {
+          "pad": 1,
+          "file": "1 Cajon 1.wav",
+          "name": "Cajon 1"
+        },
+        {
+          "pad": 2,
+          "file": "2 Cajon 2.wav",
+          "name": "Cajon 2"
+        },
+        {
+          "pad": 3,
+          "file": "3 Cajon 3.wav",
+          "name": "Cajon 3"
+        },
+        {
+          "pad": 4,
+          "file": "4 Cajon 4.wav",
+          "name": "Cajon 4"
+        },
+        {
+          "pad": 5,
+          "file": "5 Cajon 5.wav",
+          "name": "Cajon 5"
+        },
+        {
+          "pad": 6,
+          "file": "6 Cajon 6.wav",
+          "name": "Cajon 6"
+        },
+        {
+          "pad": 7,
+          "file": "7 Cajon 7.wav",
+          "name": "Cajon 7"
+        },
+        {
+          "pad": 8,
+          "file": "8 Cajon 8.wav",
+          "name": "Cajon 8"
+        },
+        {
+          "pad": 9,
+          "file": "9 Cajon 9.wav",
+          "name": "Cajon 9"
+        },
+        {
+          "pad": 10,
+          "file": "10 Cajon 10.wav",
+          "name": "Cajon 10"
+        },
+        {
+          "pad": 11,
+          "file": "11 Cajon 11.wav",
+          "name": "Cajon 11"
         }
       ]
     }
   ],
   "padsets": [
     {
-      "name": "Stand-in Pad",
-      "dir": "Stand-in Pad",
+      "name": "Mesosphere (shimmery)",
+      "dir": "Mesosphere (shimmery)",
       "keys": {
         "0": {
-          "file": "Pad C [baked].wav",
-          "baked": true
+          "file": "Pad C.mp3"
+        },
+        "1": {
+          "file": "Pad Db.mp3"
+        },
+        "2": {
+          "file": "Pad D.mp3"
+        },
+        "3": {
+          "file": "Pad Eb.mp3"
+        },
+        "4": {
+          "file": "Pad E.mp3"
+        },
+        "5": {
+          "file": "Pad F.mp3"
+        },
+        "6": {
+          "file": "Pad Gb.mp3"
+        },
+        "7": {
+          "file": "Pad G.mp3"
+        },
+        "8": {
+          "file": "Pad Ab.mp3"
+        },
+        "9": {
+          "file": "Pad A.mp3"
+        },
+        "10": {
+          "file": "Pad Bb.mp3"
+        },
+        "11": {
+          "file": "Pad B.mp3"
         }
+      }
+    },
+    {
+      "name": "Troposphere (mellow)",
+      "dir": "Troposphere (mellow)",
+      "keys": {
+        "0": {
+          "file": "Pad C.mp3"
+        },
+        "1": {
+          "file": "Pad Db.mp3"
+        },
+        "2": {
+          "file": "Pad D.mp3"
+        },
+        "3": {
+          "file": "Pad Eb.mp3"
+        },
+        "4": {
+          "file": "Pad E.mp3"
+        },
+        "5": {
+          "file": "Pad F.mp3"
+        },
+        "6": {
+          "file": "Pad Gb.mp3"
+        },
+        "7": {
+          "file": "Pad G.mp3"
+        },
+        "8": {
+          "file": "Pad Ab.mp3"
+        },
+        "9": {
+          "file": "Pad A.mp3"
+        },
+        "10": {
+          "file": "Pad Bb.mp3"
+        },
+        "11": {
+          "file": "Pad B.mp3"
+        }
+      }
+    }
+  ],
+  "clicksets": [
+    {
+      "name": "Justin Click",
+      "dir": "Justin Click",
+      "files": {
+        "accent": "Click Accent.wav",
+        "beat": "Click Beat.wav",
+        "sub": "Click Sub.wav"
       }
     }
   ]

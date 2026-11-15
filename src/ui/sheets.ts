@@ -44,18 +44,25 @@ export function openClick(ui: UI): void {
       const file = h('input', { attrs: { type: 'file', accept: 'audio/*,.wav,.mp3,.m4a,.aif,.aiff', hidden: '' } });
       file.addEventListener('change', () => { const f = file.files?.[0]; file.value = ''; if (f) app.setClickSample(slot, f); });
       const state = h('span', { class: 'dev-name' });
-      const reset = btn({ label: 'Use built-in', cls: 'ghost', onClick: () => app.setClickSample(slot, null) });
+      const reset = btn({ label: 'Remove', cls: 'ghost', onClick: () => app.setClickSample(slot, null) });
       const row = h('div', { class: 'dev-row' }, state, btn({ label: 'Import', onClick: () => file.click() }), reset, file);
       return { slot, row, state, reset };
     });
     const dest = h('p', { class: 'help' });
-    body.append(h('section', {}, h('div', { class: 'row' }, on.el), field('Subdivisions', sub.el)),
+    // stock click or a click set from kits/: one switch for the whole app
+    const sets = app.bank.index.clicksets;
+    const sound = segmented<string>({ label: 'Click sound', value: app.clickSet?.name || 'builtin', options: [{ value: 'builtin', label: 'Built-in' }, ...sets.map(c => ({ value: c.name, label: c.name }))], onChange: v => app.setClickSound(v) });
+    const soundField = field('Click sound', sound.el);
+    soundField.hidden = !sets.length;
+    body.append(h('section', {}, h('div', { class: 'row' }, on.el), soundField, field('Subdivisions', sub.el)),
       h('section', {}, h('h3', { text: 'Levels' }), lv.accent.el, lv.beat.el, lv.subLevel.el),
-      h('section', {}, h('h3', { text: 'Samples' }), ...slots.map(s => s.row)), dest);
+      h('section', {}, h('h3', { text: 'This song only' }), h('p', { class: 'help', text: 'Import a sample to replace one click sound in this song. It overrides the choice above.' }), ...slots.map(s => s.row)), dest);
     return () => {
       const c = app.song.click;
       on.set(c.on); sub.set(c.sub); lv.accent.set(c.accent); lv.beat.set(c.beat); lv.subLevel.set(c.subLevel);
-      for (const s of slots) { const own = !!c.samples[s.slot]; s.state.textContent = `${s.slot === 'accent' ? 'Accent (beat 1)' : s.slot === 'beat' ? 'Beat' : 'Subdivision'}: ${own ? 'your sample' : 'built-in'}`; s.reset.disabled = !own; }
+      const cs = app.clickSet;
+      sound.set(cs?.name || 'builtin');
+      for (const s of slots) { const own = !!c.samples[s.slot]; s.state.textContent = `${s.slot === 'accent' ? 'Accent (beat 1)' : s.slot === 'beat' ? 'Beat' : 'Subdivision'}: ${own ? 'imported for this song' : cs?.files[s.slot] ? cs.name : 'built-in'}`; s.reset.disabled = !own; }
       const b = app.routing.buses.click;
       dest.textContent = `The click has its own bus, now sent to ${b.dest === 'cue' ? 'Cue' : 'Main'}${app.nativeCue ? ' and played by the app on its own outputs' : ''}. Change it in the mixer. Muting the click never stops the transport.`;
     };
@@ -194,11 +201,14 @@ export function openTonic(ui: UI): void {
     const fin = fader({ value: 4, min: 0.1, max: 12, label: 'Fade in', format: sec, onInput: v => patch({ fadeIn: v }) });
     const fout = fader({ value: 6, min: 0.1, max: 12, label: 'Fade out', format: sec, onInput: v => patch({ fadeOut: v }) });
     const xf = fader({ value: 4, min: 2, max: 8, label: 'Key change crossfade', format: sec, onInput: v => patch({ xfade: v }) });
-    const lp = fader({ value: 20000, min: 200, max: 20000, curve: 'log', label: 'Low-pass', format: hz, onInput: v => patch({ lp: v }) });
-    const hp = fader({ value: 20, min: 20, max: 2000, curve: 'log', label: 'High-pass', format: hz, onInput: v => patch({ hp: v }) });
+    const lp = fader({ value: 20000, min: 200, max: 20000, curve: 'log', label: 'High cut', format: v => (v >= 19500 ? 'Off' : hz(v)), reset: 20000, onInput: v => patch({ lp: v }) });
+    // rolls the low end out of the pad so it stays clear of the sub synth and the guitar
+    const hp = fader({ value: 20, min: 20, max: 800, curve: 'log', label: 'Low cut', format: v => (v <= 21 ? 'Off' : hz(v)), reset: 20, onInput: v => patch({ hp: v }) });
+    const offline = h('p', { class: 'help' });
     const status = h('div', { class: 'note' }, h('span'));
     body.append(h('section', {}, h('div', { class: 'row' }, on.el, h('div', { class: 'grow' }, set.el)), status, field('Key', keys), level.el),
-      h('section', {}, h('h3', { text: 'Fades' }), fin.el, fout.el, xf.el), h('section', {}, h('h3', { text: 'Tone' }), lp.el, hp.el));
+      h('section', {}, h('h3', { text: 'Tone' }), hp.el, lp.el, h('p', { class: 'help', text: 'Low cut takes out the low end of the pad. Double-tap either fader to turn it off.' })),
+      h('section', {}, h('h3', { text: 'Fades' }), fin.el, fout.el, xf.el), offline);
     return () => {
       const s = app.song.tonic, tp = app.eng.tonic;
       on.set(s.on); set.update(); level.set(s.level); fin.set(s.fadeIn); fout.set(s.fadeOut); xf.set(s.xfade); lp.set(s.lp); hp.set(s.hp);
@@ -209,6 +219,9 @@ export function openTonic(ui: UI): void {
         : pk.shift ? `Fallback: no sample for ${NOTE_NAMES[app.song.key]} in this set, so ${pk.file} is pitch-shifted by ${pk.shift > 0 ? '+' : ''}${pk.shift} semitones.`
         : `Playing ${pk.file}${tp.status === 'loading' ? ' (loading)' : tp.status === 'missing' ? ' (file could not be read)' : ''}.`;
       status.classList.toggle('warn', !pk || !!pk.shift || tp.status === 'missing');
+      const o = app.offline;
+      offline.textContent = !o.total ? '' : o.done >= o.total ? `Saved for offline: all ${o.total} files for this song (kit, click and every key of this pad set).`
+        : o.active ? `Saving for offline: ${o.done} of ${o.total} files. Stay online until this finishes.` : `Saved for offline: ${o.done} of ${o.total} files. Open the app online again to finish.`;
     };
   }).update();
 }

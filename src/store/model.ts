@@ -57,6 +57,8 @@ export interface Settings {
   theme: 'dark' | 'light'; editLock: boolean; edit: boolean; countInOnPadLaunch: boolean;
   routingByDevice: Record<string, Routing>; midi: MidiSettings; cueOffsetMs: number; clickBackend: 'auto' | 'web' | 'native';
   pedalKeys: boolean;
+  /** Which click sound to use: 'builtin', the name of a click set from kits/, or '' for the default (a click set when one exists). */
+  clickSound: string;
 }
 export interface AppState {
   schema: 2; songs: Song[]; sets: SetList[]; currentSet: string; currentSong: string; patterns: Pattern[]; settings: Settings;
@@ -93,7 +95,7 @@ export const defaultSong = (name = 'New song'): Song => ({
   quantize: 'bar', click: defaultClick(), sub: defaultSub(), tonic: defaultTonic(), notes: '',
 });
 export const defaultSettings = (): Settings => ({
-  theme: 'dark', editLock: false, edit: false, countInOnPadLaunch: false, routingByDevice: {}, cueOffsetMs: 0, clickBackend: 'auto', pedalKeys: true,
+  theme: 'dark', editLock: false, edit: false, countInOnPadLaunch: false, routingByDevice: {}, cueOffsetMs: 0, clickBackend: 'auto', pedalKeys: true, clickSound: '',
   midi: { disabled: {}, lastBle: '', clockOut: true, startStop: false, clockOffset: {}, clockMode: 'auto', channel: 0, padZone: { on: false, low: 48 }, programChange: false, maps: {} },
 });
 export function defaultState(): AppState {

@@ -19,6 +19,12 @@ Branch: `live-rig`. Never push to `main`.
 | 11 | Sample library and docs | Done |
 | 12 | Capacitor shell and native plugin | Written, not compiled (no Xcode on the Mac) |
 
+## Since the first hand-off
+
+- Preview is live at `/next/` (the github-pages environment now allows `live-rig`).
+- Justin's samples are in: Acoustic Set (real stomp, thick kick, clap, tambourines, cajon, snap, shaker loop), Cajon Slaps (11 hits to audition), Justin Click (click set), and two pad sets in all 12 major keys.
+- Click sound switch (Built-in or a click set), pad low cut, offline saving of pad files, patterns use real samples.
+
 ## Tests (all passing at the last commit)
 
 - `npm run typecheck`

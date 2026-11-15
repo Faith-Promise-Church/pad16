@@ -37,6 +37,8 @@ export class TonicPad {
     this.level.gain.setTargetAtTime(s.level, t, 0.02);
     this.lp.frequency.setTargetAtTime(Math.min(20000, Math.max(200, s.lp)), t, 0.02);
     this.hp.frequency.setTargetAtTime(Math.min(2000, Math.max(20, s.hp)), t, 0.02);
+    // 12 dB per octave below the low cut; flat when it is off
+    this.hp.Q.setTargetAtTime(0.707, t, 0.02);
     if (s.on !== was) { if (s.on) this.play(s.fadeIn); else this.fadeOut(s.fadeOut); }
   }
   setSet(set: PadSetInfo | null): void {

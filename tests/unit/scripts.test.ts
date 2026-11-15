@@ -1,7 +1,7 @@
 // The kit scripts are plain JavaScript so they run on any Node. These tests keep them in step with the app's own code.
 import { describe, it, expect } from 'vitest';
 // @ts-ignore: plain JS module
-import { parseTags as scriptParse, padKey, tagSuffix } from '../../scripts/lib/tags.mjs';
+import { parseTags as scriptParse, padKey, tagSuffix, clickSlot } from '../../scripts/lib/tags.mjs';
 // @ts-ignore: plain JS module
 import { bakeLoop, writeWav16, readWav16 } from '../../scripts/lib/wav.mjs';
 import { parseTags } from '../../src/engine/tags';
@@ -21,6 +21,10 @@ describe('kit scripts', () => {
   it('recognize pad files by key', () => {
     expect(padKey('Pad C.wav')).toBe(0); expect(padKey('Pad Db.wav')).toBe(1); expect(padKey('pad F# [baked].wav')).toBe(6);
     expect(padKey('Pad Bb.aif')).toBe(10); expect(padKey('Pad_A.wav')).toBe(9); expect(padKey('Paddle.wav')).toBe(-1); expect(padKey('Pad Swell.wav')).toBe(-1); expect(padKey('3 Pad.wav')).toBe(-1);
+  });
+  it('recognize click set files', () => {
+    expect(clickSlot('Click Accent.wav')).toBe('accent'); expect(clickSlot('click beat.wav')).toBe('beat'); expect(clickSlot('Click_Sub.wav')).toBe('sub');
+    expect(clickSlot('Click Subdivision.wav')).toBe('sub'); expect(clickSlot('Click Loop 80bpm.wav')).toBeNull(); expect(clickSlot('Clicker Accent.wav')).toBeNull();
   });
   it('bake the same crossfade as the app and round-trip WAV', () => {
     const x = Float32Array.from({ length: 4000 }, (_, i) => Math.sin(i * 0.07) * 0.5);

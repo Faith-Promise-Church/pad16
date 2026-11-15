@@ -31,3 +31,8 @@ export function padKey(file) {
   if (!m) return -1;
   return (KEYS[m[1].toUpperCase()] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12;
 }
+/** "Click Accent.wav", "Click Beat.wav" or "Click Sub.wav" gives the click slot, otherwise null. */
+export function clickSlot(file) {
+  const m = /^\s*click[\s_-]+(accent|beat|sub)(?:division)?(?=$|[\s._\-\[])/i.exec(file.replace(/\.[A-Za-z0-9]{2,5}$/, ''));
+  return m ? m[1].toLowerCase() : null;
+}

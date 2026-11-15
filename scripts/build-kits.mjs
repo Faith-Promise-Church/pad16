@@ -1,7 +1,8 @@
 // Scans kits/<Name>/ and writes kits/index.json for the app.
 // Runs in the GitHub Action on every push; run it locally with: node scripts/build-kits.mjs
 //
-// A folder is a KIT (16 pads) unless every audio file in it is named by key, in which case it is a PAD SET for the tonic pad.
+// A folder is a KIT (16 pads) unless every audio file in it is named by key, in which case it is a PAD SET for the tonic pad,
+// or every file is a click sound (Click Accent, Click Beat, Click Sub), in which case it is a CLICK SET.
 //
 // Kit file names:
 //   "05 Snare.wav"                      pad 5, named "Snare" (a leading 1-16 picks the pad)
@@ -12,11 +13,13 @@
 //   Files beyond 16 are kept as extras: not on a pad, but pattern tracks can use them.
 // Pad set file names:
 //   "Pad C.wav", "Pad Db.wav" ... one per key. "[baked]" means the loop crossfade is already in the file.
+// Click set file names:
+//   "Click Accent.wav" (beat 1), "Click Beat.wav", "Click Sub.wav" (subdivisions). A missing one uses the built-in sound.
 
 import { readdirSync, statSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseTags, padKey } from './lib/tags.mjs';
+import { parseTags, padKey, clickSlot } from './lib/tags.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const KITS = join(ROOT, 'kits');
@@ -25,7 +28,7 @@ const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'bas
 
 if (!existsSync(KITS)) mkdirSync(KITS);
 
-const kits = [], padsets = [];
+const kits = [], padsets = [], clicksets = [];
 for (const dir of readdirSync(KITS).sort(collator.compare)) {
   if (dir.startsWith('.')) continue;
   const full = join(KITS, dir);
@@ -40,6 +43,14 @@ for (const dir of readdirSync(KITS).sort(collator.compare)) {
     for (const f of files) { const k = padKey(f); if (!(k in keys)) keys[k] = { file: f, ...(parseTags(f).baked ? { baked: true } : {}) }; }
     padsets.push({ name: dir, dir, keys });
     console.log(`${dir}: pad set, ${Object.keys(keys).length} of 12 keys`);
+    continue;
+  }
+
+  if (files.every(f => clickSlot(f))) {
+    const slots = {};
+    for (const f of files) { const k = clickSlot(f); if (!(k in slots)) slots[k] = f; }
+    clicksets.push({ name: dir, dir, files: slots });
+    console.log(`${dir}: click set (${Object.keys(slots).join(', ')})`);
     continue;
   }
 
@@ -62,5 +73,5 @@ for (const dir of readdirSync(KITS).sort(collator.compare)) {
   console.log(`${dir}: ${pads.length} pad${pads.length === 1 ? '' : 's'}${extras.length ? `, ${extras.length} extra sample${extras.length === 1 ? '' : 's'} for patterns` : ''}`);
 }
 
-writeFileSync(join(KITS, 'index.json'), JSON.stringify({ kits, padsets }, null, 2) + '\n');
-console.log(`Wrote kits/index.json with ${kits.length} kit${kits.length === 1 ? '' : 's'} and ${padsets.length} pad set${padsets.length === 1 ? '' : 's'}.`);
+writeFileSync(join(KITS, 'index.json'), JSON.stringify({ kits, padsets, clicksets }, null, 2) + '\n');
+console.log(`Wrote kits/index.json with ${kits.length} kit${kits.length === 1 ? '' : 's'}, ${padsets.length} pad set${padsets.length === 1 ? '' : 's'} and ${clicksets.length} click set${clicksets.length === 1 ? '' : 's'}.`);

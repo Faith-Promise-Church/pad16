@@ -10,14 +10,15 @@ import { PadMode } from './tags';
 
 export interface KitPad { pad: number; file: string; name: string; mode?: PadMode; bpm?: number; bars?: number; group?: string }
 export interface KitInfo { name: string; dir: string; pads: KitPad[]; extras?: Array<{ file: string; name: string }> }
-export interface KitIndex { kits: KitInfo[]; padsets: PadSetInfo[] }
+export interface ClickSetInfo { name: string; dir: string; files: Partial<Record<'accent' | 'beat' | 'sub', string>> }
+export interface KitIndex { kits: KitInfo[]; padsets: PadSetInfo[]; clicksets: ClickSetInfo[] }
 export interface Resolved { buffer: AudioBuffer | null; missing: boolean }
 
 export const kitUrl = (dir: string, file: string) => 'kits/' + dir.split('/').map(encodeURIComponent).join('/') + '/' + encodeURIComponent(file);
 
 export class SampleBank {
   builtin: Array<AudioBuffer | null> = [];
-  index: KitIndex = { kits: [], padsets: [] };
+  index: KitIndex = { kits: [], padsets: [], clicksets: [] };
   private cache = new Map<string, Promise<AudioBuffer | null>>();
   constructor(private eng: Engine, private kv: KV) {}
 
@@ -29,8 +30,9 @@ export class SampleBank {
       this.index = {
         kits: Array.isArray(j.kits) ? j.kits.filter((k: any) => k && k.name && Array.isArray(k.pads)) : [],
         padsets: Array.isArray(j.padsets) ? j.padsets.filter((k: any) => k && k.name && k.keys) : [],
+        clicksets: Array.isArray(j.clicksets) ? j.clicksets.filter((k: any) => k && k.name && k.files) : [],
       };
-    } catch { this.index = { kits: [], padsets: [] }; }
+    } catch { this.index = { kits: [], padsets: [], clicksets: [] }; }
   }
   private key(ref: SampleRef): string {
     return ref.t === 'kit' ? `kit:${ref.kit}/${ref.file}` : ref.t === 'audio' ? `audio:${ref.id}` : ref.t === 'synth' ? `synth:${ref.id}` : ref.t === 'builtin' ? `builtin:${ref.i}` : 'none';

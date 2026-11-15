@@ -88,3 +88,15 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 ## Preview
 
 48. **No Vercel project was created.** GitHub Pages blocked the preview deploy with an environment protection rule. The brief says to name a needed repo setting instead of working around it, so the setting is named in the README and the final report: Settings, Environments, github-pages, Deployment branches and tags, add `live-rig`.
+
+## Real samples (after the first hand-off)
+
+49. **Justin's samples are in the public repo at his direction.** Asked whether library-sourced files should stay private like the DIN fonts, he chose the public repo.
+50. **His files replace stand-ins slot by slot,** keeping the slot file names, so pads, songs and patterns pick them up with no remapping. Slots he did not supply stay as stand-ins.
+51. **Stand-in sounds in patterns resolve to the Acoustic Set file of the same name.** Starter patterns therefore play the real stomp, clap and cajon without being rewritten.
+52. **The cajon bass and slap picks, and the tambourine with or without head, were chosen by measurement.** All 11 cajon hits are in `kits/Cajon Slaps/` for auditioning.
+53. **Pad MP3s are published untouched** (no re-encode, so no generation loss) and get their loop crossfade at load.
+54. **A supplied click set is the default click sound; Built-in is one tap away** in Click settings. The choice is global. A per-song imported click sample still overrides either.
+55. **Kit audio is served from the offline cache first and refreshed in the background.** Nothing on stage waits on a network. A sample replaced under the same file name is heard on the launch after the next online launch. The page itself gives the network 3 seconds before using its cached copy.
+56. **The web app saves the current kit, click set and all 12 keys of the selected pad set for offline** while it is online, so a key change never needs the network.
+57. **Pad low cut**: the tonic pad's high-pass is now "Low cut", first in its Tone section, 20 to 800 Hz, off by default.

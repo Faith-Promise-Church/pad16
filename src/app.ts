@@ -1,6 +1,7 @@
 // The app controller: owns the saved state, the engine, samples and MIDI, and is what the interface talks to.
 import { Engine } from './engine/engine';
-import { SampleBank, KitInfo } from './engine/bank';
+import { SampleBank, KitInfo, ClickSetInfo, kitUrl } from './engine/bank';
+import { SOUND_BY_ID } from './engine/synthkit';
 import { stretchLoop, stretchAmount } from './engine/stretch';
 import { detectTempo } from './engine/detect';
 import { parseTags } from './engine/tags';
@@ -53,7 +54,7 @@ export class App {
     this.webClick = this.eng.click as WebClick;
     this.bank = new SampleBank(this.eng, this.kv);
     this.eng.pads.patterns = id => this.state.patterns.find(p => p.id === id);
-    this.eng.pads.trackBuffer = (src: TrackSrc) => (src.t === 'pad' ? this.eng.pads.pads[src.i]?.buffer ?? null : this.bank.peek(src as SampleRef));
+    this.eng.pads.trackBuffer = (src: TrackSrc) => (src.t === 'pad' ? this.eng.pads.pads[src.i]?.buffer ?? null : this.bank.peek(this.realSample(src as SampleRef)));
     this.eng.pads.wantStretch = (i, bpm) => this.ensureStretch(i, bpm);
     this.eng.sub.onNote = () => this.emit();
     this.eng.tonic.onChange = () => this.emit();
@@ -193,13 +194,14 @@ export class App {
 
   /** Change song fields and push them to the engine. */
   patchSong(patch: Partial<Song>, engineOnly = false): void {
-    const s = this.song, e = this.eng;
+    const s = this.song, e = this.eng, prevSet = s.tonic.set;
     Object.assign(s, patch);
     if (patch.bpm !== undefined) { s.bpm = clampBpm(patch.bpm); e.transport.setBpm(s.bpm); this.restretch(); }
     if (patch.ts) e.transport.setTs(s.ts);
     if (patch.quantize) e.pads.globalQuant = s.quantize;
     if (patch.click || engineOnly) { e.click.setSettings(s.click); e.transport.countInBars = s.click.countIn; if (patch.click) this.loadClickSamples(); }
     if (patch.sub || engineOnly) e.sub.setSettings(s.sub);
+    if (s.tonic.set !== prevSet) setTimeout(() => this.saveForOffline(), 0);
     if (patch.tonic || engineOnly) { e.tonic.setSet(this.bank.index.padsets.find(p => p.name === s.tonic.set) || this.bank.index.padsets[0] || null); e.tonic.setSettings(s.tonic); }
     if (patch.key !== undefined) e.tonic.setKey(s.key);
     if (!engineOnly) this.changed();
@@ -208,11 +210,20 @@ export class App {
 
   private async loadClickSamples() {
     for (const k of ['accent', 'beat', 'sub'] as ClickKind[]) {
-      const id = this.song.click.samples[k];
-      const b = id ? (await this.bank.resolve({ t: 'audio', id })).buffer : null;
+      const id = this.song.click.samples[k], set = this.clickSet, file = set?.files[k];
+      let b: AudioBuffer | null = null;
+      if (id) b = (await this.bank.resolve({ t: 'audio', id })).buffer;
+      else if (set && file) { const r = await this.bank.resolve({ t: 'kit', kit: set.dir, file }); b = r.missing ? null : r.buffer; }
       this.webClick.setSample(k, b); this.nativeClick?.setSample(k, b);
     }
   }
+  /** The click set in use, or null for the built-in click. With no choice made, a click set from kits/ wins over the built-in. */
+  get clickSet(): ClickSetInfo | null {
+    const sets = this.bank.index.clicksets, want = this.state.settings.clickSound;
+    if (want === 'builtin' || !sets.length) return null;
+    return sets.find(s => s.name === want) || sets[0];
+  }
+  setClickSound(name: string): void { this.state.settings.clickSound = name; this.loadClickSamples(); this.changed(); }
   async setClickSample(slot: ClickKind, file: File | null): Promise<void> {
     const samples = { ...this.song.click.samples };
     if (!file) delete samples[slot];
@@ -233,6 +244,7 @@ export class App {
     e.tonic.preload(this.nextSongInSet?.key ?? s.key);
     await Promise.all(s.pads.map((cfg, i) => this.loadPad(i, cfg, my)));
     if (!initial) this.emit();
+    this.saveForOffline();
   }
   private async loadPad(i: number, cfg: PadConfig, token = this.loadToken): Promise<void> {
     const r = await this.bank.resolve(cfg.src, i);
@@ -244,7 +256,35 @@ export class App {
     this.emit();
   }
   /** Decode a pattern's track samples ahead of time so the first pass is complete. */
-  warmPattern(id: string) { const p = this.state.patterns.find(x => x.id === id); if (p) for (const t of p.tracks) if (t.src.t !== 'pad') this.bank.peek(t.src as SampleRef); }
+  warmPattern(id: string) { const p = this.state.patterns.find(x => x.id === id); if (p) for (const t of p.tracks) if (t.src.t !== 'pad') this.bank.peek(this.realSample(t.src as SampleRef)); }
+  /** A stand-in sound resolves to the real recording when the Acoustic Set has a file in that slot (matched by name). */
+  realSample(ref: SampleRef): SampleRef {
+    if (ref.t !== 'synth') return ref;
+    const name = SOUND_BY_ID[ref.id]?.name.toLowerCase(), kit = this.bank.index.kits.find(k => k.name === 'Acoustic Set');
+    const hit = name && kit ? [...kit.pads, ...(kit.extras || [])].find(e => e.name.toLowerCase() === name) : undefined;
+    return hit && kit ? { t: 'kit', kit: kit.dir, file: hit.file } : ref;
+  }
+
+  /* ---------- offline ---------- */
+  offline = { done: 0, total: 0, active: false };
+  private offlineToken = 0;
+  /** While online, quietly fetch every file the current song could need (kit, click set, all 12 keys of the pad set)
+   *  so the service worker has them when the network is gone. The iOS app bundles its files and skips this. */
+  async saveForOffline(): Promise<void> {
+    if (isNative() || typeof caches === 'undefined' || !navigator.serviceWorker?.controller) return;
+    const my = ++this.offlineToken, urls = new Set<string>();
+    const kit = this.bank.index.kits.find(k => k.name === this.song.kit);
+    if (kit) for (const e of [...kit.pads, ...(kit.extras || [])]) urls.add(kitUrl(kit.dir, e.file));
+    const cs = this.clickSet; if (cs) for (const f of Object.values(cs.files)) if (f) urls.add(kitUrl(cs.dir, f));
+    const ps = this.eng.tonic.set; if (ps) for (const k of Object.values(ps.keys)) urls.add(kitUrl(ps.dir, k.file));
+    this.offline = { done: 0, total: urls.size, active: true }; this.emit();
+    for (const u of urls) {
+      if (my !== this.offlineToken) return;
+      try { if (!(await caches.match(new URL(u, location.href).href))) { if (!navigator.onLine) break; await fetch(u); } this.offline.done++; } catch { /* try again next launch */ }
+      this.emit();
+    }
+    if (my === this.offlineToken) { this.offline.active = false; this.emit(); }
+  }
 
   /* ---------- pads ---------- */
   padName(i: number): string {
@@ -314,6 +354,7 @@ export class App {
     // loops without a tempo tag: measure them now that they are decoded
     s.pads.forEach((cfg, i) => { if (cfg.mode === 'loop' && cfg.sync !== 'off' && !cfg.sourceBpm) this.detectPad(i, k2name(cfg)); });
     const miss = this.padMeta.filter(m => m.missing).length;
+    this.saveForOffline();
     if (name !== 'builtin') this.toast(miss ? `Loaded ${name}. ${miss} file${miss === 1 ? '' : 's'} could not be read and play a stand-in.` : `Loaded ${name}.`);
     function k2name(c: PadConfig) { return c.src.t === 'kit' ? c.src.file : c.name; }
   }

@@ -41,9 +41,13 @@ kits/
     2 Clap.wav
     9 Groove [loop] [92bpm] [4bars].wav
     10 Shaker [loop] [group:a].wav
-  Warm Pads/
+  Warm Pads/               a pad set: every file named by key
     Pad C.wav
     Pad Db.wav
+  My Click/                a click set
+    Click Accent.wav
+    Click Beat.wav
+    Click Sub.wav
 ```
 
 See [SAMPLES.md](SAMPLES.md) for the full convention, the prep script, pad sets and a recording guide.
