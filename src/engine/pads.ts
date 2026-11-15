@@ -161,7 +161,9 @@ export class PadPlayer implements Source {
     const r = p.run; if (!r) return;
     p.run = null;
     const now = this.eng.now(), g = r.gain;
-    try { g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + Math.max(0.004, fade)); } catch { /* fine */ }
+    // a run whose own stop point has passed is already silent: leave its gain alone
+    const done = r.stopBeat !== null && r.clockRun === this.eng.clock.run && this.eng.clock.timeAt(r.stopBeat) <= now;
+    if (!done) { try { g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(0, now + Math.max(0.004, fade)); } catch { /* fine */ } }
     const at = now + Math.max(0.004, fade) + 0.005;
     for (const l of r.live) { try { l.src.stop(at); } catch { /* fine */ } }
     if (typeof setTimeout !== 'undefined') setTimeout(() => { try { g.disconnect(); } catch { /* fine */ } }, (fade + 0.2) * 1000);

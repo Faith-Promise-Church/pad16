@@ -83,8 +83,10 @@ export class SubSynth {
     if (a.type === 'legato') { this.tune(a.note, p.glide); this.onNote(a.note); return; }
     this.tune(a.note, 0);
     this.hold(this.amp.gain, t);
-    this.amp.gain.linearRampToValueAtTime(1, t + Math.max(0.001, p.attack));
-    this.amp.gain.setTargetAtTime(p.sustain, t + Math.max(0.001, p.attack), Math.max(0.01, p.decay) / 3);
+    // setTarget curves start from wherever the envelope is, so a retrigger never jumps
+    const atk = Math.max(0.002, p.attack);
+    this.amp.gain.setTargetAtTime(1, t, atk / 4);
+    this.amp.gain.setTargetAtTime(p.sustain, t + atk, Math.max(0.01, p.decay) / 3);
     if (p.envAmount > 0.001) {
       const base = this.cutoff(), top = Math.min(14000, base * Math.pow(2, p.envAmount * 4));
       for (const f of p.poles === 24 ? [this.f1, this.f2] : [this.f1]) {
