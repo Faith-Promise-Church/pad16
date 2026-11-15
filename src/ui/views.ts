@@ -123,6 +123,8 @@ export function gridView(ui: UI): View {
       if (mx >= mn) g.fillRect(x, mid - mx * amp, 1, Math.max(1, (mx - mn) * amp));
     }
   }
+  // reduced motion: a queued pad shows its steady queued look instead of blinking
+  const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   return {
     el,
     update() {
@@ -142,7 +144,7 @@ export function gridView(ui: UI): View {
       });
     },
     frame() {
-      const e = app.eng, beat = e.clock.beatAt(e.now()), blink = beat - Math.floor(beat) < 0.5;
+      const e = app.eng, beat = e.clock.beatAt(e.now()), blink = still || beat - Math.floor(beat) < 0.5;
       cells.forEach((c, i) => {
         const v = pads.view(i), meta = app.padMeta[i];
         const label = v.state === 'queued' ? 'Queued' : v.state === 'stopping' ? 'Stopping' : v.state === 'playing' ? 'Playing'

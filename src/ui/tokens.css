@@ -60,7 +60,6 @@
   --r-pill: 999px;
   --dur: 120ms;
   --ease: ease;
-  --blink: 1;
 }
 
 /* Daylight theme for outdoor sets: state colors darkened to hold 4.5:1 on white. */
@@ -98,5 +97,5 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur: 0ms; --blink: 0; }
+  :root { --dur: 0ms; }
 }

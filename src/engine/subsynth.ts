@@ -58,7 +58,8 @@ export class SubSynth {
     const fc = this.cutoff();
     this.f1.frequency.setTargetAtTime(fc, t, RAMP); this.f1.Q.setTargetAtTime(p.resonance, t, RAMP);
     this.f2.frequency.setTargetAtTime(p.poles === 24 ? fc : 20000, t, RAMP); this.f2.Q.setTargetAtTime(p.poles === 24 ? 0.6 : 0.707, t, RAMP);
-    this.level.gain.setTargetAtTime(this.settings.on ? this.settings.level * (this.mod.level ?? 1) : 0, t, RAMP);
+    // 0.55 leaves headroom: a full-level bass note sits around -6 dB on the Sub bus
+    this.level.gain.setTargetAtTime(this.settings.on ? 0.55 * this.settings.level * (this.mod.level ?? 1) : 0, t, RAMP);
     if (this.notes.sounding !== null) this.tune(this.notes.sounding, RAMP);
   }
   private tune(note: number, glide: number): void {

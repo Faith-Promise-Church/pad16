@@ -36,7 +36,7 @@ async function boot() {
   const railEl = h('aside', { class: 'rail', attrs: { 'aria-label': 'Tonic pad, sub synth and mixer' } }, rail.tonic.el, rail.sub.el, rail.mixer.el);
   const stage = h('main', { class: 'stage' }, h('section', { class: 'grid-wrap' }, grid.el), railEl);
   const stripEl = h('section', { class: 'strip', attrs: { 'aria-label': 'Tonic pad and sub synth' } }, strip.tonic.el, strip.sub.el,
-    btn({ icon: 'mixer', label: 'Mixer', title: 'Mixer', cls: 'mix-open', onClick: () => ui.openMixer() }));
+    btn({ icon: 'mixer', title: 'Mixer', cls: 'mix-open', onClick: () => ui.openMixer() }));
   const panelMix = h('section', { class: 'panel panel-mix' }, phoneMixer.el);
   const panelSynth = h('section', { class: 'panel panel-synth' }, phoneTonic.el), panelSong = h('section', { class: 'panel panel-song' });
   const updSynth = synthPanel(ui, panelSynth), updSong = songPanel(ui, panelSong);

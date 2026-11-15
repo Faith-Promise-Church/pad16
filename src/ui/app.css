@@ -153,7 +153,12 @@ h2, p { margin: 0; }
 .card .fader { flex: 1 1 calc(var(--u) * 10); }
 .card-status:empty { display: none; }
 .card .note-read { min-width: 3.2ch; text-align: center; font-size: var(--fs-barbeat); font-weight: var(--w-medium); }
-.rail .card { flex: none; min-height: calc(var(--u) * 10); flex-wrap: wrap; padding: var(--u); }
+.rail .card { flex: none; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; padding: var(--u); }
+.rail .card > .toggle { grid-area: 1 / 1; }
+.rail .card > .pick-btn { grid-area: 1 / 2; }
+.rail .card > .btn:last-child { grid-area: 1 / 3; }
+.rail .card > .fader { grid-area: 2 / 1 / 3 / 3; }
+.rail .card > .card-status, .rail .card > .note-read { grid-area: 2 / 3; text-align: right; min-height: var(--touch); display: grid; align-content: center; }
 
 /* ---------- mixer ---------- */
 .mixer { display: flex; gap: var(--u); justify-content: space-between; min-width: 0; }
@@ -211,7 +216,7 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 .seq { display: grid; gap: var(--u); overflow-x: auto; padding-bottom: var(--u); }
 .seq-row { display: grid; grid-template-columns: calc(var(--u) * 16) var(--touch) calc(var(--u) * 12) minmax(0, 1fr); gap: var(--u); align-items: center; min-width: min-content; }
 .seq-name { justify-content: flex-start; font-size: var(--fs-label); overflow: hidden; text-overflow: ellipsis; padding: 0 var(--u); }
-.seq-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc(var(--u) * 4), 1fr); gap: calc(var(--u) / 2); }
+.seq-steps { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(var(--touch), 1fr); gap: calc(var(--u) / 2); }
 .step { height: var(--touch); padding: 0; border: var(--hair) solid var(--hairline); border-radius: calc(var(--r-ctl) / 2); background: var(--bg); position: relative; }
 .step.beat { border-color: var(--hairline-strong); }
 .step.bar { margin-left: var(--u); }
@@ -284,7 +289,8 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 #app[data-layout="phone"] .tabs { display: flex; }
 #app[data-layout="phone"]:not([data-tab="pads"]) .stage, #app[data-layout="phone"]:not([data-tab="pads"]) .editor { display: none; }
 #app[data-layout="phone"][data-tab="mix"] .panel-mix, #app[data-layout="phone"][data-tab="synth"] .panel-synth, #app[data-layout="phone"][data-tab="song"] .panel-song { display: grid; grid-row: 2 / 4; }
-#app[data-layout="phone"][data-edit="true"][data-tab="pads"] .editor { max-height: 42vh; }
+#app[data-layout="phone"][data-edit="true"][data-tab="pads"] .editor { max-height: 36vh; }
+#app[data-layout="phone"][data-edit="true"] .pad canvas, #app[data-layout="phone"][data-edit="true"] .pad-group { display: none; }
 #app[data-layout="phone"] .card { flex-wrap: wrap; padding: var(--u); flex: none; }
 #app[data-layout="phone"] .toast { bottom: calc(var(--h-tabs) + var(--u) * 2 + env(safe-area-inset-bottom, 0px)); }
 .seq-level .label, .seq-level .fader-value { display: none; }
@@ -292,3 +298,11 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 @media (max-width: 699px) { .seq-row { grid-template-columns: calc(var(--u) * 11) var(--touch) calc(var(--u) * 8) minmax(0, 1fr); } }
 .pane { padding: 0; overflow: visible; }
 .panel .mixer, .rail .mixer { padding-top: var(--u); }
+
+/* scrolling containers never squeeze their rows: content keeps its height and the container scrolls */
+.sheet-body, .panel, .editor, .rail, .pane { grid-auto-rows: max-content; }
+.seg { flex: none; min-height: var(--touch); }
+.strip .card .pick-btn { flex: 0 0 auto; }
+.strip .card .fader { min-width: calc(var(--u) * 8); }
+section > h3:not(:first-child), .sheet-body h3 { margin-top: var(--u); }
+.sheet-body .toggle, .panel .toggle, .editor .toggle { justify-self: start; }
