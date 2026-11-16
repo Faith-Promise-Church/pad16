@@ -23,7 +23,9 @@ export function transportView(ui: UI): View {
   const tap = btn({ label: 'Tap', title: 'Tap tempo', onClick: () => app.tap() });
   const light = h('span', { class: 'beat-light', attrs: { 'aria-hidden': 'true' } }), bb = h('span', { class: 'barbeat-num', attrs: { 'aria-label': 'Bar and beat' } });
   const ts = h('button', { class: 'ts-btn', title: 'Time signature', attrs: { type: 'button' }, on: { click: () => ui.openTempo() } });
-  const click = toggle({ label: 'Click', icon: 'click', cls: 'cue', value: app.song.click.on, onChange: v => app.patchSong({ click: { ...app.song.click, on: v } }) });
+  // press and hold opens the click settings: on a phone there is no room for the separate button
+  const click = toggle({ label: 'Click', icon: 'click', cls: 'cue', value: app.song.click.on, onChange: v => app.patchSong({ click: { ...app.song.click, on: v } }), onHold: () => ui.openClick() });
+  click.el.title = 'Click. Press and hold for click settings.';
   click.el.addEventListener('contextmenu', e => e.preventDefault());
   const clickMore = btn({ icon: 'more', title: 'Click settings', cls: 'ghost hide-phone', onClick: () => ui.openClick() });
   const songName = h('span', { class: 'song-name' }), songNext = h('span', { class: 'song-next' });

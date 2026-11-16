@@ -106,6 +106,27 @@ test.describe('phone layout', () => {
     await expect(page.locator('.pages.compact .page-tab').nth(1)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.pages.compact .page-tab').nth(0)).toHaveAttribute('data-busy', 'true', { timeout: 6000 });
     await page.screenshot({ path: 'test-results/phone-layout.png' });
+    // the click menu on a phone: press and hold the Click button (a short tap still just switches the click)
+    const click = page.locator('.transport .toggle');
+    await click.tap();
+    expect(await app(page, 'a => a.song.click.on')).toBe(true);
+    const cb = (await click.boundingBox())!;
+    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2); await page.mouse.down(); await page.waitForTimeout(750); await page.mouse.up();
+    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
+    expect(await app(page, 'a => a.song.click.on')).toBe(true);                       // holding did not switch it
+    await expect(page.locator('.sheet[aria-label="Click"] .seg-btn[aria-pressed="true"]', { hasText: 'Eighths' })).toBeVisible();
+    await page.locator('.sheet[aria-label="Click"] .btn[title="Close"]').tap();
+    await click.tap();
+    expect(await app(page, 'a => a.song.click.on')).toBe(false);                      // and the next tap works as usual
+    // it is also in the Song tab and in the tempo sheet
+    await page.locator('.tabs button', { hasText: 'Song' }).tap();
+    await page.locator('.panel-song .btn', { hasText: 'Click settings' }).tap();
+    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
+    await page.locator('.sheet[aria-label="Click"] .btn[title="Close"]').tap();
+    await page.locator('.bpm-btn').tap();
+    await page.locator('.sheet[aria-label="Tempo and meter"] .btn', { hasText: 'Click settings' }).tap();
+    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
+    await expect(page.locator('.sheet[aria-label="Tempo and meter"]')).toHaveCount(0);
   });
 });
 
@@ -265,15 +286,15 @@ test.describe('stage behavior', () => {
     await page.locator('.grid-col .page-tab').nth(0).tap();
     await expect(page.locator('.pad').nth(1).locator('.pad-name')).toHaveText('Tambo');
   });
-  test('the ready-made set: eight songs with keys, tempos and a 6/8 layout @webkit', async ({ page }) => {
+  test('the ready-made set: nine songs with keys, tempos and a 6/8 layout @webkit', async ({ page }) => {
     await app(page, 'a => a.selectSet("set-2026-11-acoustic")');
     expect(await app(page, 'a => a.setSongs.map(s => [s.name, s.key, s.bpm, s.ts.num + "/" + s.ts.den])')).toEqual([
       ['Bless God', 0, 72.5, '4/4'], ['Cornerstone', 0, 72, '4/4'], ['No One Like the Lord', 4, 72, '4/4'], ['Here Again', 0, 68, '4/4'],
-      ['Great Are You Lord', 10, 74, '6/8'], ['I Surrender', 4, 76.5, '6/8'], ['Tremble', 11, 74, '4/4'], ['Send Me', 11, 66, '4/4']]);
+      ['Great Are You Lord', 10, 74, '6/8'], ['I Surrender', 4, 76.5, '6/8'], ['Tremble', 11, 74, '4/4'], ['Send Me', 11, 66, '4/4'], ['Deliverance', 9, 72, '4/4']]);
     await app(page, 'a => a.selectSong("set-2026-11-acoustic-5")');
     await expect(page.locator('.song-name').first()).toHaveText('Great Are You Lord');
     await expect(page.locator('.bpm-num')).toHaveText('74');
-    expect(await app(page, 'a => a.setSongs.map(s => s.click.sub)')).toEqual(['8', '8', '8', '8', 'off', 'off', '8', '8']);
+    expect(await app(page, 'a => a.setSongs.every(s => s.click.sub === "8")')).toBe(true);
     // 74 on the chart is in quarter notes: eighths at 148, a pulse of 49.33, and MIDI clock at 74
     expect(await app(page, 'a => [Math.round(a.eng.transport.targetBpm * 1000) / 1000, Math.round(a.eng.clock.bpm * 1.5 * 100) / 100]')).toEqual([49.333, 74]);
     await expect(page.locator('.pad .pad-name')).toHaveText(['Shaker', 'Tambo on 4', 'Tambo Every Other Bar', 'Claps on 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time',
@@ -291,7 +312,7 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(8).locator('.pad-name')).toHaveText('Cajon on 1');
     expect(await app(page, 'a => [a.page, a.eng.transport.targetBpm, a.song.pads[0].mode]')).toEqual([0, 74, 'loop']);
     // the set is added once: deleting it sticks
-    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-4-cajon-grooves']);
+    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-4-cajon-grooves', 'patch-5-click-eighths-compound', 'patch-6-add-deliverance']);
   });
   test('a stretched loop keeps sounding through a tempo change and its next loop point @webkit', async ({ page }) => {
     test.setTimeout(90_000);
@@ -343,7 +364,8 @@ test.describe('stage behavior', () => {
     await expect.poll(() => app(page, 'a => !!a.webClick.samples.accent')).toBe(true);
     // with the click on, it sounds through the click bus
     await app(page, 'a => { a.patchSong({ click: { ...a.song.click, on: true } }); a.eng.transport.start(); }');
-    await expect.poll(() => app(page, 'a => a.eng.mixer.level("click") > 0.02'), { timeout: 4000 }).toBe(true);
+    // clicks are short: watch the meter closely instead of sampling it now and then
+    expect(await app(page, 'async a => { let top = 0; for (let i = 0; i < 300 && top < 0.02; i++) { top = Math.max(top, a.eng.mixer.level("click")); await new Promise(r => setTimeout(r, 12)); } return top > 0.02; }')).toBe(true);
   });
   test('starter patterns play the real recordings from the Acoustic Set', async ({ page }) => {
     expect(await app(page, 'a => a.realSample({ t: "synth", id: "stomp" })')).toEqual({ t: 'kit', kit: 'Acoustic Set', file: '1 Stomp.wav' });

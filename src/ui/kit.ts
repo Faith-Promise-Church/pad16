@@ -70,13 +70,20 @@ export function btn(o: BtnOpts): HTMLButtonElement {
   return b;
 }
 /** A button that shows on/off with a label and a state word, not color alone. */
-export function toggle(o: { label: string; icon?: string; value: boolean; onChange: (v: boolean) => void; cls?: string }) {
-  let v = o.value;
+/** An on/off switch. With onHold, pressing and holding it does that instead of switching (used to reach a control's settings where there is no room for a second button). */
+export function toggle(o: { label: string; icon?: string; value: boolean; onChange: (v: boolean) => void; cls?: string; onHold?: () => void }) {
+  let v = o.value, timer = 0, held = false;
   const state = h('span', { class: 'toggle-state' });
-  const b = h('button', { class: 'toggle ' + (o.cls || ''), attrs: { type: 'button', role: 'switch' }, on: { click: () => { set(!v); o.onChange(v); } } },
+  const b = h('button', { class: 'toggle ' + (o.cls || ''), attrs: { type: 'button', role: 'switch' }, on: { click: () => { if (held) { held = false; return; } set(!v); o.onChange(v); } } },
     o.icon ? icon(o.icon) : null, h('span', { class: 'toggle-label', text: o.label }), state);
   function set(nv: boolean) { v = nv; b.setAttribute('aria-checked', String(v)); state.textContent = v ? 'On' : 'Off'; }
   set(v);
+  if (o.onHold) {
+    const stop = () => { window.clearTimeout(timer); timer = 0; };
+    b.addEventListener('pointerdown', e => { if (e.button > 0) return; held = false; stop(); timer = window.setTimeout(() => { timer = 0; held = true; o.onHold!(); }, 550); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, stop);
+    b.addEventListener('contextmenu', e => e.preventDefault());
+  }
   return { el: b, set };
 }
 

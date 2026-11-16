@@ -90,10 +90,10 @@ describe('the ready-made set', () => {
     const songs = set.songIds.map(id => state.songs.find(s => s.id === id)!);
     expect(songs.map(s => `${s.name} ${'C Db D Eb E F Gb G Ab A Bb B'.split(' ')[s.key]} ${s.bpm} ${s.ts.num}/${s.ts.den}`)).toEqual([
       'Bless God C 72.5 4/4', 'Cornerstone C 72 4/4', 'No One Like the Lord E 72 4/4', 'Here Again C 68 4/4',
-      'Great Are You Lord Bb 74 6/8', 'I Surrender E 76.5 6/8', 'Tremble B 74 4/4', 'Send Me B 66 4/4']);
+      'Great Are You Lord Bb 74 6/8', 'I Surrender E 76.5 6/8', 'Tremble B 74 4/4', 'Send Me B 66 4/4', 'Deliverance A 72 4/4']);
     for (const s of songs) { expect(s.pads.length).toBe(PADS); expect(s.kit).toBe('rig'); expect(s.pageNames).toEqual(['Cajon', 'Kick']); }
-    // eighth-note click subdivisions on the 4/4 songs only
-    expect(songs.map(s => s.click.sub)).toEqual(['8', '8', '8', '8', 'off', 'off', '8', '8']);
+    // eighth-note click subdivisions on every song
+    expect(songs.every(s => s.click.sub === '8')).toBe(true);
     // the two 6/8 songs count their tempo in quarter notes, and use the 6/8 patterns
     expect(songs.filter(s => s.tempoCount === 'quarter').map(s => s.name)).toEqual(['Great Are You Lord', 'I Surrender']);
     expect(pulseBpm(songs[4].bpm, songs[4].ts, songs[4].tempoCount)).toBeCloseTo(49.333, 3);
@@ -119,7 +119,7 @@ describe('the ready-made set', () => {
     const saved = normalizeState(JSON.parse(JSON.stringify(state)));
     expect(applyPatches(saved)).toBe(true);
     const get = (id: string) => saved.songs.find(s => s.id === id)!;
-    expect(get(four.id).click.sub).toBe('8'); expect(get(mine.id).click.sub).toBe('8'); expect(get(six.id).click.sub).toBe('off');
+    expect(get(four.id).click.sub).toBe('8'); expect(get(mine.id).click.sub).toBe('8'); expect(get(six.id).click.sub).toBe('8');
     for (const s of saved.songs) {
       expect(s.pads.slice(8, 14).map(p => p.group).join(''), s.name).toBe('BBBBBB');
       expect(s.pads[14].group).toBe('C'); expect(s.pads.slice(24, 30).every(p => p.group === 'C')).toBe(true);
@@ -133,14 +133,14 @@ describe('the ready-made set', () => {
     expect(applyPatches(again)).toBe(false);
     const t = again.songs.find(s => s.id === four.id)!;
     expect([t.click.sub, t.pads[8].group, t.pads[0].color]).toEqual(['off', 'C', undefined]);
-    expect(set.songIds.length).toBe(8);
+    expect(set.songIds.length).toBe(9);
   });
   it('saved cajon pads that were the bass alone become grooves; one that was edited is left alone', () => {
     const state = defaultState(), fresh = new Map(state.patterns.map(p => [p.id, p]));
     const firsts = cajonLowFirst();
     state.patterns = state.patterns.map(p => firsts.find(f => f.id === p.id) || p);            // as the earlier version saved them
     const edited = state.patterns.find(p => p.id === 'rig-cbass-four')!; edited.tracks[0].steps[2] = 4;
-    state.seeded = ['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors'];
+    state.seeded = ['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-5-click-eighths-compound', 'patch-6-add-deliverance'];
     const saved = normalizeState(JSON.parse(JSON.stringify(state)));
     expect(applyPatches(saved)).toBe(true);
     const got = (id: string) => saved.patterns.find(p => p.id === id)!;
@@ -149,5 +149,27 @@ describe('the ready-made set', () => {
     expect(got('rig-cbass-four').tracks.filter(t => t.steps.some(Boolean)).length).toBe(1); expect(got('rig-cbass-four').tracks[0].steps[2]).toBe(4);
     expect(got('rig-kick-1')).toEqual(fresh.get('rig-kick-1'));
     expect(applyPatches(saved)).toBe(false);
+  });
+  it('a set saved with eight songs gains Deliverance at the end, and its 6/8 songs gain eighth-note click, once', () => {
+    const state = defaultState(), set = applySeeds(state)!;
+    applyPatches(state);
+    // back to how the earlier version saved it: eight songs, the 6/8 songs clicking on the pulse only
+    const last = set.songIds[8];
+    set.songIds = set.songIds.slice(0, 8); state.songs = state.songs.filter(s => s.id !== last);
+    for (const s of state.songs) if (s.ts.den === 8) s.click = { ...s.click, sub: 'off' };
+    state.songs.find(s => s.name === 'Tremble')!.click.sub = 'off';                      // a 4/4 song turned off by hand
+    state.seeded = state.seeded!.filter(id => id !== 'patch-5-click-eighths-compound' && id !== 'patch-6-add-deliverance');
+    const saved = normalizeState(JSON.parse(JSON.stringify(state)));
+    expect(applyPatches(saved)).toBe(true);
+    const got = saved.sets.find(s => s.id === set.id)!.songIds.map(id => saved.songs.find(s => s.id === id)!);
+    expect(got.map(s => s.name)).toEqual(['Bless God', 'Cornerstone', 'No One Like the Lord', 'Here Again', 'Great Are You Lord', 'I Surrender', 'Tremble', 'Send Me', 'Deliverance']);
+    expect(got[8]).toMatchObject({ bpm: 72, key: 9, ts: { num: 4, den: 4 }, kit: 'rig' }); expect(got[8].click.sub).toBe('8'); expect(got[8].pads).toEqual(rigPads());
+    expect(got.map(s => s.click.sub)).toEqual(['8', '8', '8', '8', '8', '8', 'off', '8', '8']);     // the hand-set 4/4 song is left alone
+    // once: removing the song again sticks, and so does a deleted set
+    const s2 = saved.sets.find(s => s.id === set.id)!; s2.songIds = s2.songIds.slice(0, 8); saved.songs = saved.songs.filter(s => s.name !== 'Deliverance');
+    const again = normalizeState(JSON.parse(JSON.stringify(saved)));
+    expect(applyPatches(again)).toBe(false); expect(again.songs.some(s => s.name === 'Deliverance')).toBe(false);
+    const gone = defaultState(); gone.seeded = ['set-2026-11-acoustic'];
+    applyPatches(gone); expect(gone.songs.length).toBe(1); expect(gone.sets.length).toBe(1);
   });
 });

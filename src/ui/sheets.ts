@@ -12,7 +12,7 @@ const hz = (v: number) => (v >= 1000 ? (v / 1000).toFixed(1) + ' kHz' : Math.rou
 /* ---------- tempo ---------- */
 export function openTempo(ui: UI): void {
   const { app } = ui;
-  openSheet('Tempo and meter', body => {
+  openSheet('Tempo and meter', (body, close) => {
     const input = textInput({ value: String(app.song.bpm), numeric: true, max: 6, onCommit: v => { const n = parseFloat(v.replace(',', '.')); if (isFinite(n)) app.patchSong({ bpm: n }); } });
     input.el.setAttribute('aria-label', 'Tempo in BPM');
     const nudge = (d: number, label: string) => btn({ label, title: `Tempo ${label}`, onClick: () => app.patchSong({ bpm: +(app.song.bpm + d).toFixed(1) }) });
@@ -28,7 +28,9 @@ export function openTempo(ui: UI): void {
     body.append(
       h('section', {}, field('Tempo', h('div', { class: 'row' }, nudge(-1, '-1'), nudge(-0.1, '-0.1'), h('div', { class: 'grow' }, input.el), nudge(0.1, '+0.1'), nudge(1, '+1'), btn({ label: 'Tap', cls: 'primary', onClick: () => app.tap() }))), note),
       h('section', {}, h('h3', { text: 'Time signature' }), h('div', { class: 'two' }, field('Beats', num.el), field('Note value', den.el)), countField),
-      h('section', {}, h('h3', { text: 'Launch' }), h('div', { class: 'two' }, field('Count-in', countIn.el), field('Launch quantize for loops and patterns', quant.el))));
+      h('section', {}, h('h3', { text: 'Launch' }), h('div', { class: 'two' }, field('Count-in', countIn.el), field('Launch quantize for loops and patterns', quant.el))),
+      h('section', {}, h('h3', { text: 'Click' }), btn({ label: 'Click settings', icon: 'click', onClick: () => { close(); ui.openClick(); } }),
+        h('p', { class: 'help', text: 'Subdivisions, click sound and levels. Pressing and holding the Click button opens them too.' })));
     return () => {
       input.set(String(app.song.bpm)); num.set(app.song.ts.num); den.set(app.song.ts.den); countIn.set(app.song.click.countIn); quant.update();
       const compound = isCompound(app.song.ts), q = app.song.tempoCount === 'quarter';
@@ -100,7 +102,8 @@ export function songPanel(ui: UI, body: HTMLElement): () => void {
       btn({ icon: 'trash', title: 'Delete set', cls: 'ghost', onClick: () => confirmSheet('Delete set', `Delete the set "${app.set.name}"? Its songs stay in the library.`, 'Delete set', () => app.deleteSet(app.set.id)) })),
       field('Set name', setName.el), list,
       h('div', { class: 'row' }, btn({ label: 'New song', icon: 'plus', cls: 'grow', onClick: () => app.addSong() }), btn({ label: 'Duplicate', icon: 'copy', cls: 'grow', onClick: () => app.addSong(app.song) }))),
-    h('section', {}, h('h3', { text: 'This song' }), field('Name', name.el), h('div', { class: 'two' }, field('Key', key.el), field('Kit', kit.el)), field('Notes', notes.el)),
+    h('section', {}, h('h3', { text: 'This song' }), field('Name', name.el), h('div', { class: 'two' }, field('Key', key.el), field('Kit', kit.el)), field('Notes', notes.el),
+      h('div', { class: 'row' }, btn({ label: 'Tempo and meter', cls: 'grow', onClick: () => ui.openTempo() }), btn({ label: 'Click settings', icon: 'click', cls: 'grow', onClick: () => ui.openClick() }))),
     h('section', {}, h('h3', { text: 'Backup and transfer' }), h('div', { class: 'row' }, exp, btn({ label: 'Import set', icon: 'import', onClick: () => file.click() })),
       h('p', { class: 'help', text: 'A set file holds every song in the set, its patterns and the samples you imported. Kit samples ship with the app and are not copied.' }), file));
   let sig = '';
