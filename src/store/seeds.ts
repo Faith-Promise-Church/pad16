@@ -1,6 +1,7 @@
 // Ready-made sets and one-time changes to saved songs. Each is applied once, by id, and never again:
 // what you edit or delete afterwards sticks. A set is added beside what is saved; a change touches only what it names.
 import { TimeSig, TempoCount } from '../engine/time';
+import { renderPattern, starterPatterns, cajonLowFirst } from '../engine/patterns';
 import { AppState, Song, SetList, defaultSong, defaultClick, rigPads, rigColor, isCajonLow, RIG_PAGES, RIG_KIT } from './model';
 
 interface SeedSong { name: string; key: string; bpm: number; ts?: TimeSig; tempoCount?: TempoCount }
@@ -51,6 +52,14 @@ const PATCHES: Array<{ id: string; run: (state: AppState) => void }> = [
   { id: 'patch-2-cajon-group-b', run: st => { for (const s of st.songs) s.pads = s.pads.map(p => (isCajonLow(p) && p.group === 'C' ? { ...p, group: 'B' } : p)); } },
   // muted colors on the default layout's pads
   { id: 'patch-3-pad-colors', run: st => { for (const s of st.songs) s.pads = s.pads.map(p => { const c = p.color ? undefined : rigColor(p); return c ? { ...p, color: c } : p; }); } },
+  // the cajon pads that began as the kick figures on the bass alone become full grooves, unless the saved copy was edited
+  { id: 'patch-4-cajon-grooves', run: st => {
+    const now = new Map(starterPatterns().map(p => [p.id, p])), same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    for (const first of cajonLowFirst()) {
+      const i = st.patterns.findIndex(p => p.id === first.id), next = now.get(first.id);
+      if (i >= 0 && next && same(renderPattern(st.patterns[i]), renderPattern(first)) && st.patterns[i].swing === first.swing) st.patterns[i] = next;
+    }
+  } },
 ];
 /** Apply the one-time changes this state has not had. Returns true when any ran. */
 export function applyPatches(state: AppState): boolean {

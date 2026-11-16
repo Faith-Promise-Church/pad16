@@ -148,16 +148,38 @@ export function rigPatterns(): Pattern[] {
     ]),
   ];
 }
-/** The all-cajon page: the kick loops again, played on the cajon bass. */
+/** The six low figures in 4/4: name, the kick or bass steps, and the soft cajon taps that go with them in a groove. */
+const LOW_44: Array<[id: string, name: string, low: string, taps: string]> = [
+  ['1', 'on 1',              'X... .... .... ....', '..2. ..2. ..3. ..2.'],
+  ['and', '1 and 3',         'X.5. .... X.5. ....', '.... ..2. .... ..23'],
+  ['sync', 'Syncopated',     'X..6 ..6. .56. ..6.', '..2. .... 2... ....'],
+  ['four', 'Four',           'X... 7... 7... 7...', '..2. ..2. ..2. ..23'],
+  ['worship-1', 'Worship A', 'X... ..6. X... ....', '..2. .... ..2. ..23'],
+  ['worship-2', 'Worship B', 'X... ...5 X.6. ....', '..2. ..2. .... ..2.'],
+];
+const BACKBEAT_44 = '.... X... .... X...';
+/** The all-cajon page: each kick figure as a full cajon groove. The bass plays the kick's part, the slap takes 2 and 4, soft taps fill in. */
 export function cajonLowPatterns(): Pattern[] {
-  const low = (id: string, name: string, steps: string) => build(id, name, T44, 1, [['Cajon Bass', 'cajon-bass', steps, 1, true]]);
+  return LOW_44.map(([id, name, low, taps]) => build(`rig-cbass-${id}`, `Cajon ${name}`, T44, 1, [
+    ['Cajon Bass', 'cajon-bass', low, 1, true],
+    ['Cajon Slap', 'cajon-slap', BACKBEAT_44, 1, true],
+    ['Cajon Tap', kit('Cajon Slaps', '10 Cajon 10.wav'), taps, 1, true],
+  ]));
+}
+/** The six low figures in 6/8 (one or two bars), with their taps. */
+const LOW_68: Array<[id: string, name: string, bars: 1 | 2, low: string, taps: string]> = [
+  ['1', 'on 1', 1,              'X..... ......', '..2.2. ..2.3.'],
+  ['1-4', '1 and 4', 1,         'X..... 6.....', '..2.3. ..2.3.'],
+  ['1-3-4', '1 3 4', 1,         'X...5. 7.....', '..2... ..2.3.'],
+  ['1-4-6', '1 4 6', 1,         'X..... 7...5.', '..2.3. ..2...'],
+  ['worship-1', 'Worship A', 2, 'X..... ....5. | X...5. 7.....', '..2.3. ..2... | ..2... ..2.3.'],
+  ['worship-2', 'Worship B', 2, 'X..... 7...5. | X.5... 7.....', '..2.3. ..2... | ....3. ..2.3.'],
+];
+/** These cajon pads as they first shipped: the bass alone, playing the kick figure. Kept so a saved copy that was never edited can be told from one that was. */
+export function cajonLowFirst(): Pattern[] {
   return [
-    low('rig-cbass-1', 'Cajon on 1',            'X... .... .... ....'),
-    low('rig-cbass-and', 'Cajon 1 and 3',       'X.5. .... X.5. ....'),
-    low('rig-cbass-sync', 'Cajon Syncopated',   'X..6 ..6. .56. ..6.'),
-    low('rig-cbass-four', 'Cajon Four',         'X... 7... 7... 7...'),
-    low('rig-cbass-worship-1', 'Cajon Worship A', 'X... ..6. X... ....'),
-    low('rig-cbass-worship-2', 'Cajon Worship B', 'X... ...5 X.6. ....'),
+    ...LOW_44.map(([id, name, low]) => build(`rig-cbass-${id}`, `Cajon ${name}`, T44, 1, [['Cajon Bass', 'cajon-bass', low, 1, true]])),
+    ...LOW_68.map(([id, name, bars, low]) => build(`rig68-cbass-${id}`, `6/8 Cajon ${name}`, T68, bars, [['Cajon Bass', 'cajon-bass', low, 1, true]])),
   ];
 }
 /** The same layout for 6/8: two dotted-quarter beats in the bar, six steps each, so eighth notes fall on every second step. */
@@ -166,15 +188,13 @@ export function rig68Patterns(): Pattern[] {
   const bass: [string, string] = ['Cajon Bass', 'cajon-bass'], slap: [string, string] = ['Cajon Slap', 'cajon-slap'];
   const tap: [string, TrackSrc] = ['Cajon Tap', kit(C, '10 Cajon 10.wav')];
   const bar = '...... ......';
-  const low = (id: string, name: string, bars: 1 | 2, steps: string, src: [string, string]) => build(id, name, T68, bars, [[...src, steps, 1, true]]);
-  const lows = (pre: string, label: string, src: [string, string]) => [
-    low(`rig68-${pre}-1`, `6/8 ${label} on 1`, 1,        'X..... ......', src),
-    low(`rig68-${pre}-1-4`, `6/8 ${label} 1 and 4`, 1,   'X..... 6.....', src),
-    low(`rig68-${pre}-1-3-4`, `6/8 ${label} 1 3 4`, 1,   'X...5. 7.....', src),
-    low(`rig68-${pre}-1-4-6`, `6/8 ${label} 1 4 6`, 1,   'X..... 7...5.', src),
-    low(`rig68-${pre}-worship-1`, `6/8 ${label} Worship A`, 2, 'X..... ....5. | X...5. 7.....', src),
-    low(`rig68-${pre}-worship-2`, `6/8 ${label} Worship B`, 2, 'X..... 7...5. | X.5... 7.....', src),
-  ];
+  const kicks = LOW_68.map(([id, name, bars, low]) => build(`rig68-kick-${id}`, `6/8 Kick ${name}`, T68, bars, [['Kick', 'thick-kick', low, 1, true]]));
+  // the cajon versions are grooves: bass on the kick's part, slap on 4, soft taps on the other eighths
+  const cajons = LOW_68.map(([id, name, bars, low, taps]) => build(`rig68-cbass-${id}`, `6/8 Cajon ${name}`, T68, bars, [
+    [...bass, low, 1, true],
+    [...slap, '...... X.....', 1, true],
+    [...tap, taps, 1, true],
+  ]));
   return [
     // single strokes cut from the 80 BPM shaker: strong on 1 and 4, light and medium eighths between, a soft pickup into each pulse
     build('rig68-shaker', '6/8 Shaker', T68, 1, [
@@ -213,8 +233,8 @@ export function rig68Patterns(): Pattern[] {
       [...slap, '...... ...... | X..... ......', 1, true],
       [...tap,  '..2.2. ..2... | ..2.2. ..2.34', 1, true],
     ]),
-    ...lows('cbass', 'Cajon', bass),
-    ...lows('kick', 'Kick', ['Kick', 'thick-kick']),
+    ...cajons,
+    ...kicks,
     build('rig68-kick-build', '6/8 Kick Build', T68, 1, [['Kick', 'thick-kick', '8.2.3. 4.5.7.', 1, true]]),
     build('rig68-stomp-1', '6/8 Stomp on 1', T68, 4, [
       ['Fast Stomp A', kit(A, 'Fast Stomp A.wav'), `X..... ...... | ${bar} | ${bar} | ${bar}`],

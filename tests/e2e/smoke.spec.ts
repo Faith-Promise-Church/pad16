@@ -24,7 +24,7 @@ for (const size of SIZES) {
       await expect(page.locator('.bpm-num')).toHaveText('72.5');
       await start(page);
       await expect(page.locator('.pad')).toHaveCount(16);
-      await expect(page.locator('.page-tab')).toHaveCount(2);
+      await expect(page.locator('.grid-col .page-tab')).toHaveCount(2);
       await expect(page.locator('.bpm-num')).toHaveText('80');
       // a fresh install opens on the default layout; this test plays the built-in one shots
       await expect(page.locator('.pad').first().locator('.pad-name')).toHaveText('Shaker');
@@ -78,6 +78,36 @@ for (const size of SIZES) {
     });
   });
 }
+
+test.describe('phone layout', () => {
+  test.use({ viewport: { width: 393, height: 660 }, hasTouch: true });
+  test('three rows up top, a small page switch, and pads wide enough to read their names', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForSelector('html[data-ready="true"]');
+    const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
+    // tempo row holds the time signature; tools row holds the page switch; then the song row. Nothing wraps to a fourth row.
+    const [run, ts, sw, panic, song, bar] = [await box('.run-btn'), await box('.ts-btn'), await box('.pages.compact'), await box('.transport .t-tool >> nth=-1'), await box('.song-block'), await box('.transport')];
+    expect(Math.abs(ts.y - run.y)).toBeLessThan(4);
+    expect(Math.abs(panic.y - sw.y)).toBeLessThan(6); expect(sw.y).toBeGreaterThan(run.y + 40);
+    expect(song.y).toBeGreaterThan(sw.y + 40); expect(bar.height).toBeLessThan(190);
+    expect(panic.x + panic.width).toBeLessThanOrEqual(393); expect(sw.height).toBeGreaterThanOrEqual(44);
+    await expect(page.locator('.grid-col .pages')).toBeHidden();
+    // the grid takes the full width and the tab bar sits on the bottom edge
+    const grid = await box('.grid'), tabs = await box('.tabs');
+    expect(grid.width).toBeGreaterThan(370); expect(Math.round(tabs.y + tabs.height)).toBe(660);
+    // every pad name shows in full, on whole words
+    const names = await page.locator('.pad-name').evaluateAll(els => els.map(e => ({ t: e.textContent, cut: e.scrollHeight > e.clientHeight + 1, w: (e as HTMLElement).clientWidth })));
+    expect(names.filter(n => n.cut).map(n => n.t)).toEqual([]);
+    expect(await page.evaluate(() => { const c = document.createElement('canvas').getContext('2d')!, e = document.querySelector('.pad-name')!; c.font = getComputedStyle(e).font; return c.measureText('Syncopated').width < (e as HTMLElement).clientWidth; })).toBe(true);
+    // the switch turns the page; the dot on it shows a pad playing out of view
+    await page.locator('.pad').nth(8).tap();
+    await page.locator('.pages.compact .page-tab').nth(1).tap();
+    await expect(page.locator('.pad').nth(8).locator('.pad-name')).toHaveText('Kick on 1');
+    await expect(page.locator('.pages.compact .page-tab').nth(1)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.pages.compact .page-tab').nth(0)).toHaveAttribute('data-busy', 'true', { timeout: 6000 });
+    await page.screenshot({ path: 'test-results/phone-layout.png' });
+  });
+});
 
 test.describe('stage behavior', () => {
   test.use({ viewport: { width: 1366, height: 1024 }, hasTouch: true });
@@ -169,7 +199,7 @@ test.describe('stage behavior', () => {
     await app(page, 'a => a.loadKit("rig")');
     const names = () => page.locator('.pad .pad-name');
     const shared = ['Shaker', 'Tambo 2 and 4', 'Tambo on 4', 'Claps 2 and 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time'];
-    await expect(page.locator('.page-tab .page-name')).toHaveText(['Cajon', 'Kick']);
+    await expect(page.locator('.grid-col .page-tab .page-name')).toHaveText(['Cajon', 'Kick']);
     await expect(names()).toHaveText([...shared, 'Cajon on 1', 'Cajon 1 and 3', 'Cajon Syncopated', 'Cajon Four', 'Cajon Worship A', 'Cajon Worship B', 'Kick Build', 'Stomp on 1']);
     expect(await app(page, 'a => a.padMeta.filter(m => m.missing).length')).toBe(0);
     expect(await app(page, 'a => { const p = a.eng.pads.pads[0]; return [p.cfg.sync, p.cfg.sourceBpm, Math.round(p.buffer.duration * 100) / 100]; }')).toEqual(['stretch', 80, 24]);
@@ -186,11 +216,11 @@ test.describe('stage behavior', () => {
     // one short hit a bar: watch the meter closely for a few bars
     expect(await app(page, 'async a => { let top = 0; for (let i = 0; i < 400 && top < 0.02; i++) { top = Math.max(top, a.eng.mixer.level("drums")); await new Promise(r => setTimeout(r, 15)); } return top > 0.02; }')).toBe(true);
     // page 2: the shared pads are the same pads, still playing; the low loops are kicks
-    await page.locator('.page-tab').nth(1).tap();
+    await page.locator('.grid-col .page-tab').nth(1).tap();
     await expect(names()).toHaveText([...shared, 'Kick on 1', 'Kick 1 and 3', 'Kick Syncopated', 'Four on the Floor', 'Worship Kick A', 'Worship Kick B', 'Kick Build', 'Stomp on 1']);
     await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing');
     await expect(page.locator('.pad').nth(8)).toHaveAttribute('data-state', 'stopped');
-    await expect(page.locator('.page-tab').nth(0)).toHaveAttribute('data-busy', 'true');    // the cajon loop plays on, out of view
+    await expect(page.locator('.grid-col .page-tab').nth(0)).toHaveAttribute('data-busy', 'true');    // the cajon loop plays on, out of view
     expect(await app(page, 'a => [a.padAt(0), a.padAt(8), a.padAt(14)]')).toEqual([0, 24, 14]);
     // kick loops and cajon loops are separate groups: a kick loop joins the cajon bass loop
     await page.locator('.pad').nth(11).tap();                                          // Four on the Floor
@@ -200,14 +230,14 @@ test.describe('stage behavior', () => {
     await page.locator('.pad').nth(4).tap();                                           // Cajon Basic
     await expect(page.locator('.pad').nth(4)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
     expect(await app(page, 'a => [a.eng.pads.view(8).state, a.eng.pads.view(27).state]')).toEqual(['stopped', 'playing']);
-    await expect(page.locator('.page-tab').nth(0)).toHaveAttribute('data-busy', 'false');
+    await expect(page.locator('.grid-col .page-tab').nth(0)).toHaveAttribute('data-busy', 'false');
     // muted colors by instrument; a shared slot shows its pad's color on both pages
     expect(await page.locator('.pad').evaluateAll(els => els.map(e => (e as HTMLElement).dataset.color))).toEqual(['sage', 'teal', 'teal', 'rose', 'clay', 'clay', 'clay', 'clay', 'slate', 'slate', 'slate', 'slate', 'slate', 'slate', 'plum', 'stone']);
     // a shared pad stops from either page
     await page.locator('.pad').nth(0).tap();
-    await page.locator('.page-tab').nth(0).tap();
+    await page.locator('.grid-col .page-tab').nth(0).tap();
     await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'stopped', { timeout: 5000 });
-    await expect(page.locator('.page-tab').nth(1)).toHaveAttribute('data-busy', 'true');
+    await expect(page.locator('.grid-col .page-tab').nth(1)).toHaveAttribute('data-busy', 'true');
     await app(page, 'a => a.patchSong({ bpm: 86 })');
     await expect.poll(() => app(page, 'a => a.padMeta[0].stretch + ":" + (a.eng.pads.pads[0].stretched || {}).bpm'), { timeout: 30000 }).toBe('ready:86');
     expect(await app(page, 'a => a.stretchWarning(0)')).toBe(false);
@@ -225,14 +255,14 @@ test.describe('stage behavior', () => {
     await page.locator('.editor .swatch').first().click();
     expect(await app(page, 'a => [a.song.pads[1].color, document.querySelectorAll(".pad")[1].dataset.color]')).toEqual([undefined, undefined]);
     await app(page, 'a => a.patchPad(a.selected, { name: "Tambo" })');
-    await page.locator('.page-tab').nth(0).tap();
+    await page.locator('.grid-col .page-tab').nth(0).tap();
     await expect(page.locator('.pad').nth(1).locator('.pad-name')).toHaveText('Tambo');
-    await page.locator('.page-tab').nth(1).tap();
+    await page.locator('.grid-col .page-tab').nth(1).tap();
     await page.locator('.editor .note.shared .btn').click();
     expect(await app(page, 'a => [a.selected, a.song.pads[17].link, a.song.pads[17].patternId]')).toEqual([17, undefined, 'rig-tambo-2-4']);
     await app(page, 'a => a.patchPad(17, { name: "Kick page tambo" })');
     await expect(page.locator('.pad').nth(1).locator('.pad-name')).toHaveText('Kick page tambo');
-    await page.locator('.page-tab').nth(0).tap();
+    await page.locator('.grid-col .page-tab').nth(0).tap();
     await expect(page.locator('.pad').nth(1).locator('.pad-name')).toHaveText('Tambo');
   });
   test('the ready-made set: eight songs with keys, tempos and a 6/8 layout @webkit', async ({ page }) => {
@@ -253,7 +283,7 @@ test.describe('stage behavior', () => {
     await page.locator('.pad').nth(0).tap();                                           // the 6/8 shaker is a pattern of single strokes
     await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing', { timeout: 4000 });
     await expect.poll(() => app(page, 'a => a.eng.mixer.level("drums") > 0.01'), { timeout: 5000 }).toBe(true);
-    await page.locator('.page-tab').nth(1).tap();
+    await page.locator('.grid-col .page-tab').nth(1).tap();
     await expect(page.locator('.pad').nth(9).locator('.pad-name')).toHaveText('Kick 1 and 4');
     await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing');
     // the next song is 6/8 too; the one after is back in 4/4 with the stretched shaker loop
@@ -261,7 +291,7 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(8).locator('.pad-name')).toHaveText('Cajon on 1');
     expect(await app(page, 'a => [a.page, a.eng.transport.targetBpm, a.song.pads[0].mode]')).toEqual([0, 74, 'loop']);
     // the set is added once: deleting it sticks
-    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors']);
+    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-4-cajon-grooves']);
   });
   test('a stretched loop keeps sounding through a tempo change and its next loop point @webkit', async ({ page }) => {
     test.setTimeout(90_000);

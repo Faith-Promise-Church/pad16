@@ -28,6 +28,7 @@ Branch: `live-rig`. Never push to `main`.
 - Two pad pages per song with shared pads. Page 1 all cajon, page 2 kick.
 - 6/8: tempo counted in quarter notes (chart tempo), a full 6/8 layout, a shaker pattern cut from the loop.
 - Built-in set "Acoustic set": 8 songs with keys, tempos and meters.
+- Cajon pads 9 to 14 are full grooves on the kick figures. Phone layout: time signature in the tempo row, a small page switch, bigger pads with readable names.
 - Eighth-note click on the 4/4 songs, every cajon pad in group B, muted pad colors (by instrument, editable per pad).
 - Default layout: the 80 BPM shaker on pad 1 and 15 programmed patterns (tambourine, claps, four cajon loops, seven kick loops, stomp). Pattern steps now have 8 levels, and tracks can choke.
 

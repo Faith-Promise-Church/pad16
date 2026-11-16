@@ -29,24 +29,26 @@ export function transportView(ui: UI): View {
   const songName = h('span', { class: 'song-name' }), songNext = h('span', { class: 'song-next' });
   const song = h('button', { class: 'song-btn', title: 'Songs and sets', attrs: { type: 'button' }, on: { click: () => ui.openSongs() } }, songName, songNext);
   const prev = btn({ icon: 'prev', title: 'Previous song', cls: 'ghost', onClick: () => app.prevSong() }), next = btn({ icon: 'next', title: 'Next song', cls: 'ghost', onClick: () => app.nextSong() });
-  const chipText = h('span');
-  const chip = h('button', { class: 'chip', title: 'MIDI', attrs: { type: 'button' }, on: { click: () => ui.openSettings('midi') } }, icon('midi', 'small'), chipText);
+  const chipText = h('span', { class: 'chip-long' }), chipShort = h('span', { class: 'chip-short' });      // the phone shows the short one under the icon
+  const chip = h('button', { class: 'chip', title: 'MIDI', attrs: { type: 'button' }, on: { click: () => ui.openSettings('midi') } }, icon('midi', 'small'), chipText, chipShort);
   const edit = btn({ icon: 'edit', title: 'Edit pads', cls: 'ghost t-tool', onClick: () => ui.setEdit(!app.state.settings.edit) });
   const lock = btn({ icon: 'unlock', title: 'Edit lock', cls: 'ghost t-tool', onClick: () => { const s = app.state.settings; s.editLock = !s.editLock; if (s.editLock) ui.setEdit(false); app.changed(); } });
   const settings = btn({ icon: 'settings', title: 'Settings', cls: 'ghost t-tool', onClick: () => ui.openSettings() });
   const panic = btn({ icon: 'panic', title: 'Panic: stop everything', cls: 'ghost t-tool', onClick: () => app.panic() });
   chip.classList.add('t-chip'); lock.classList.add('hide-phone');
+  const pageSwitch = pagesView(ui, true);          // shown on phones, where the tabs above the grid would cost pad size
   const brk = (n: number) => h('span', { class: 'brk brk' + n, attrs: { 'aria-hidden': 'true' } });
   // one row on wide screens; three rows (tempo, tools, song) on phones and narrow tablets
   const el = h('header', { class: 'transport' },
     h('span', { class: 'wordmark', text: 'Pad16' }), run, bpm, tap, h('div', { class: 'barbeat' }, light, bb), ts, brk(1),
-    click.el, clickMore, chip, edit, lock, settings, panic, brk(2),
+    click.el, clickMore, pageSwitch.el, chip, edit, lock, settings, panic, brk(2),
     h('div', { class: 'song-block' }, prev, song, next));
   let wasRunning: boolean | null = null, lockIcon = '';
   return {
     el,
     update() {
       const s = app.song, st = app.state.settings;
+      pageSwitch.update();
       bpmNum.textContent = fmtBpm(s.bpm);
       ts.textContent = `${s.ts.num}/${s.ts.den}`;
       click.set(s.click.on);
@@ -56,6 +58,8 @@ export function transportView(ui: UI): View {
       const link = app.midi.link;
       chip.dataset.link = link;
       chipText.textContent = link === 'connected' ? 'MIDI on' : link === 'searching' ? 'MIDI search' : 'MIDI off';
+      chipShort.textContent = link === 'connected' ? 'On' : link === 'searching' ? 'Scan' : 'Off';
+      chip.setAttribute('aria-label', chipText.textContent);
       edit.setAttribute('aria-pressed', String(st.edit));
       edit.disabled = st.editLock;
       lock.setAttribute('aria-pressed', String(st.editLock));
@@ -64,6 +68,7 @@ export function transportView(ui: UI): View {
     },
     frame() {
       const e = app.eng, now = e.now();
+      pageSwitch.frame!();
       if (t.running !== wasRunning) {
         wasRunning = t.running; run.dataset.running = String(t.running);
         run.replaceChildren(icon(t.running ? 'stop' : 'play')); run.title = t.running ? 'Stop' : 'Start'; run.setAttribute('aria-label', run.title);
@@ -78,8 +83,9 @@ export function transportView(ui: UI): View {
 }
 
 /* ---------- pad pages ---------- */
-/** Two wide tabs above the grid. Pads on the page out of view keep playing; a dot on its tab says so. */
-export function pagesView(ui: UI): View {
+/** Two wide tabs above the grid, or (compact) a small 1 | 2 switch for the phone's top bar.
+ *  Pads on the page out of view keep playing; a dot on its tab says so. */
+export function pagesView(ui: UI, compact = false): View {
   const { app } = ui;
   const tabs = Array.from({ length: PAGES }, (_, n) => {
     const num = h('span', { class: 'page-num', text: String(n + 1) }), name = h('span', { class: 'page-name' }), dot = h('span', { class: 'page-dot', attrs: { 'aria-hidden': 'true' } });
@@ -89,7 +95,7 @@ export function pagesView(ui: UI): View {
     b.addEventListener('click', () => app.setPage(n));
     return { b, name, busy: '' };
   });
-  const el = h('div', { class: 'pages', attrs: { role: 'group', 'aria-label': 'Pad pages' } }, ...tabs.map(t => t.b));
+  const el = h('div', { class: compact ? 'pages compact' : 'pages', attrs: { role: 'group', 'aria-label': 'Pad pages' } }, ...tabs.map(t => t.b));
   return {
     el,
     update() {
@@ -181,7 +187,7 @@ export function gridView(ui: UI): View {
         const label = v.state === 'queued' ? 'Queued' : v.state === 'stopping' ? 'Stopping' : v.state === 'playing' ? 'Playing'
           : meta.missing ? 'Stand-in' : meta.stretch === 'busy' ? 'Rendering' : meta.stretch === 'failed' ? 'Repitch' : '';
         const key = v.state + (v.lit ? 'L' : '') + label;
-        if (key !== c.lastState) { c.lastState = key; c.b.dataset.state = v.state; c.b.dataset.lit = String(v.lit && v.state === 'stopped'); c.state.textContent = label; }
+        if (key !== c.lastState) { c.lastState = key; c.b.dataset.state = v.state; c.b.dataset.lit = String(v.lit && v.state === 'stopped'); c.state.textContent = label; c.b.dataset.label = String(!!label); }
         if (v.state === 'queued') c.b.dataset.blink = String(blink);
         if (v.state === 'playing' || v.state === 'stopping') c.prog.style.setProperty('--progress', v.progress.toFixed(3));
       });

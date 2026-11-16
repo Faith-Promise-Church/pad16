@@ -32,6 +32,8 @@ Everything below is defined once in [`src/ui/tokens.css`](../src/ui/tokens.css).
 | `--pad-sage` | `#7FA07A` | `#4E7A48` | Pad color |
 | `--pad-stone` | `#8C9199` | `#666C75` | Pad color |
 
+On a phone the page tabs become a small 1 | 2 switch in the tools row and the pads take the full width (see decisions 80 to 82).
+
 Pad colors are muted on purpose. They tell pads apart (by instrument in the default layout) and never show state: a colored pad is tinted at `--tint-pad` (20%, 22% in daylight) with a bar of the full color along its top edge. A state color takes over the tint and border; the bar stays.
 
 State is never shown by color alone. A playing pad is tinted, has a brighter border, a progress bar and the word "Playing". A queued pad has a dashed border and the word "Queued". Toggles say On or Off. Bus routing says Main or Cue.

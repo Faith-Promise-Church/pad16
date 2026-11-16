@@ -53,6 +53,7 @@
   --stroke: 1.5px;
   --outline: 2px;
   --touch: 48px;
+  --touch-min: 44px;   /* the smallest a control may be, used where a phone row has to fit */
   --h-transport: 72px;
   --h-strip: 96px;
   --h-tabs: 56px;

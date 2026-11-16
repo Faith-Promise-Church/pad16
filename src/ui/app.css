@@ -78,6 +78,7 @@ h2, p { margin: 0; }
   border-radius: var(--r-ctl); -webkit-user-select: text; user-select: text;
 }
 .chip { display: inline-flex; align-items: center; gap: calc(var(--u) / 2); min-height: var(--touch); padding: 0 var(--u); border: 0; background: transparent; color: var(--text-2); font-size: var(--fs-label); font-weight: var(--w-medium); text-transform: uppercase; letter-spacing: var(--ls-label); }
+.chip-short { display: none; }
 .chip[data-link="connected"] { color: var(--playing); }
 .chip[data-link="searching"] { color: var(--queued); }
 .note { display: flex; gap: var(--u); align-items: flex-start; padding: calc(var(--u) * 1.5); border: var(--hair) solid var(--hairline); border-radius: var(--r-ctl); background: var(--raised); font-size: var(--fs-label); line-height: 1.4; }
@@ -120,6 +121,11 @@ h2, p { margin: 0; }
 .page-tab[aria-pressed="true"] { background: var(--raised); border-color: var(--hairline-strong); color: var(--text); }
 .page-num { font-weight: var(--w-bold); font-size: var(--fs-value); }
 .page-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-pad); font-weight: var(--w-medium); }
+.pages.compact { display: none; grid-template-columns: repeat(2, var(--touch)); gap: 0; border: var(--hair) solid var(--hairline); border-radius: var(--r-ctl); overflow: hidden; background: var(--raised); }
+.pages.compact .page-tab { position: relative; justify-content: center; height: var(--touch); padding: 0; border: 0; border-radius: 0; background: transparent; }
+.pages.compact .page-tab[aria-pressed="true"] { background: var(--text); color: var(--on-accent); }
+.pages.compact .page-name { display: none; }
+.pages.compact .page-dot { position: absolute; top: calc(var(--u) / 2); right: calc(var(--u) / 2); }
 .page-dot { flex: none; width: var(--u); height: var(--u); border-radius: 50%; background: transparent; }
 .page-tab[data-busy="true"] .page-dot { background: var(--playing); }
 .pad {
@@ -303,15 +309,37 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 /* ---------- layout: iPhone. Tabs for Pads, Mix, Synth, Song. ---------- */
 #app[data-layout="phone"] { grid-template-rows: auto minmax(0, 1fr) auto var(--h-tabs); }
 #app[data-layout="phone"] .run-btn { width: var(--touch); height: var(--touch); }
-#app[data-layout="phone"] .pad-name { right: calc(var(--u) * 3.5); left: var(--u); top: var(--u); }
+/* phone: the time signature shares the tempo row, and the pad pages become a small switch in the tools row, so the pads get the room */
+#app[data-layout="phone"] .bpm-btn { padding: 0 calc(var(--u) / 2); }
+#app[data-layout="phone"] .bpm-btn .label { display: none; }
+#app[data-layout="phone"] .barbeat-num { min-width: 3.4ch; }
+#app[data-layout="phone"] .ts-btn { min-width: 0; padding: 0 calc(var(--u) / 2); margin-left: auto; }
+#app[data-layout="phone"] .pages.compact { display: grid; grid-template-columns: repeat(2, var(--touch-min)); }
+#app[data-layout="phone"] .transport { column-gap: calc(var(--u) * 0.75); }
+#app[data-layout="phone"] .transport .toggle { padding: 0 var(--u); gap: calc(var(--u) / 2); }
+#app[data-layout="phone"] .transport .toggle-label { display: none; }
+#app[data-layout="phone"] .transport .t-tool { min-width: var(--touch-min); width: var(--touch-min); }
+#app[data-layout="phone"] .t-chip { flex-direction: column; justify-content: center; gap: 0; padding: 0; min-width: calc(var(--u) * 3.5); }
+#app[data-layout="phone"] .chip-long { display: none; }
+#app[data-layout="phone"] .chip-short { display: block; }
+#app[data-layout="phone"] .grid-col > .pages { display: none; }
+#app[data-layout="phone"] .grid-col { --side: min(100cqw, 100cqh); grid-template-rows: var(--side); }
+#app[data-layout="phone"] .pad-type { display: none; }
+#app[data-layout="phone"] .pad-name { right: calc(var(--u) * 0.75); left: calc(var(--u) * 0.75); top: var(--u); -webkit-line-clamp: 3; }
+/* with the editor open the pads are small: a smaller name keeps whole words on a line */
+#app[data-layout="phone"][data-edit="true"] .pad-name { font-size: var(--fs-label); }
 #app[data-layout="phone"] .pad-type { right: var(--u); top: var(--u); }
-#app[data-layout="phone"] .pad-state { left: var(--u); bottom: var(--u); }
+#app[data-layout="phone"] .pad-state { left: calc(var(--u) * 0.75); bottom: var(--u); }
 #app[data-layout="phone"] .grid-wrap { padding: var(--u); }
 #app[data-layout="phone"] .strip { display: none; }
-#app[data-layout="phone"] .tabs { display: flex; }
+/* the tab bar is pinned to the last row; left to flow, it took the editor's row and wasted a tab bar's height under itself */
+#app[data-layout="phone"] .tabs { display: flex; grid-row: 4; }
+#app[data-layout="phone"] .pad[data-label="true"] .pad-group { display: none; }
 #app[data-layout="phone"]:not([data-tab="pads"]) .stage, #app[data-layout="phone"]:not([data-tab="pads"]) .editor { display: none; }
 #app[data-layout="phone"][data-tab="mix"] .panel-mix, #app[data-layout="phone"][data-tab="synth"] .panel-synth, #app[data-layout="phone"][data-tab="song"] .panel-song { display: grid; grid-row: 2 / 4; }
 #app[data-layout="phone"][data-edit="true"][data-tab="pads"] .editor { max-height: 36vh; }
+/* editing on a phone: the song row steps aside so the pads stay big enough to pick */
+#app[data-layout="phone"][data-edit="true"][data-tab="pads"] .transport .song-block, #app[data-layout="phone"][data-edit="true"][data-tab="pads"] .transport .brk2 { display: none; }
 #app[data-layout="phone"][data-edit="true"] .pad canvas, #app[data-layout="phone"][data-edit="true"] .pad-group { display: none; }
 #app[data-layout="phone"] .card { flex-wrap: wrap; padding: var(--u); flex: none; }
 #app[data-layout="phone"] .toast { bottom: calc(var(--h-tabs) + var(--u) * 2 + env(safe-area-inset-bottom, 0px)); }

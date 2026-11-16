@@ -5,6 +5,7 @@ import { loadState, STATE_KEY, audioKey } from '../../src/store/migrate';
 import { normalizeState, defaultState, rigPads, PADS } from '../../src/store/model';
 import { applySeeds, applyPatches, SEEDS } from '../../src/store/seeds';
 import { pulseBpm } from '../../src/engine/time';
+import { cajonLowFirst } from '../../src/engine/patterns';
 
 /** Write data the way the first version of the app did. */
 async function seedV1(f: IDBFactory) {
@@ -133,5 +134,20 @@ describe('the ready-made set', () => {
     const t = again.songs.find(s => s.id === four.id)!;
     expect([t.click.sub, t.pads[8].group, t.pads[0].color]).toEqual(['off', 'C', undefined]);
     expect(set.songIds.length).toBe(8);
+  });
+  it('saved cajon pads that were the bass alone become grooves; one that was edited is left alone', () => {
+    const state = defaultState(), fresh = new Map(state.patterns.map(p => [p.id, p]));
+    const firsts = cajonLowFirst();
+    state.patterns = state.patterns.map(p => firsts.find(f => f.id === p.id) || p);            // as the earlier version saved them
+    const edited = state.patterns.find(p => p.id === 'rig-cbass-four')!; edited.tracks[0].steps[2] = 4;
+    state.seeded = ['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors'];
+    const saved = normalizeState(JSON.parse(JSON.stringify(state)));
+    expect(applyPatches(saved)).toBe(true);
+    const got = (id: string) => saved.patterns.find(p => p.id === id)!;
+    expect(got('rig-cbass-1')).toEqual(fresh.get('rig-cbass-1')); expect(got('rig68-cbass-worship-2')).toEqual(fresh.get('rig68-cbass-worship-2'));
+    expect(got('rig-cbass-1').tracks.filter(t => t.steps.some(Boolean)).length).toBe(3);
+    expect(got('rig-cbass-four').tracks.filter(t => t.steps.some(Boolean)).length).toBe(1); expect(got('rig-cbass-four').tracks[0].steps[2]).toBe(4);
+    expect(got('rig-kick-1')).toEqual(fresh.get('rig-kick-1'));
+    expect(applyPatches(saved)).toBe(false);
   });
 });

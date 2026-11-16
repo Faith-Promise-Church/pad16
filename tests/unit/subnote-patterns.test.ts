@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { SubNotes } from '../../src/engine/subnote';
-import { renderPattern, starterPatterns, rigPatterns, cajonLowPatterns, rig68Patterns, RIG_44, RIG_68, upgradePattern, emptyPattern, resizePattern, patternSteps, patternBeats } from '../../src/engine/patterns';
+import { renderPattern, starterPatterns, rigPatterns, cajonLowPatterns, cajonLowFirst, rig68Patterns, RIG_44, RIG_68, upgradePattern, emptyPattern, resizePattern, patternSteps, patternBeats } from '../../src/engine/patterns';
 import { rigPads, padTarget, normalizeState, normalizeSong, defaultState, PADS, PAGE } from '../../src/store/model';
 
 describe('sub synth note priority', () => {
@@ -140,12 +140,19 @@ describe('default pad layout', () => {
     for (const p of pads) if (p.mode === 'pattern') expect(all[p.patternId], p.patternId).toBeTruthy();
     expect(defaultState().songs[0]).toMatchObject({ bpm: 80, kit: 'rig', pageNames: ['Cajon', 'Kick'] });
   });
-  it('the cajon bass loops play the same rhythms as the kick loops', () => {
+  it('the cajon pads on 9 to 14 are grooves built on the kick figures: bass on the kick part, slap on 2 and 4, soft taps', () => {
     const low = Object.fromEntries(cajonLowPatterns().map(p => [p.id, p]));
     RIG_44.cajon.forEach((id, n) => {
-      expect(renderPattern(low[id])).toEqual(renderPattern(by[RIG_44.kick[n]]));
-      expect(low[id].tracks[0]).toMatchObject({ choke: true, src: { t: 'synth', id: 'cajon-bass' } });
+      const ev = renderPattern(low[id]);
+      expect(ev.filter(e => e.track === 0)).toEqual(renderPattern(by[RIG_44.kick[n]]));          // the bass plays the kick loop's part exactly
+      expect(ev.filter(e => e.track === 1).map(e => [e.beat, e.vel])).toEqual([[1, 1], [3, 1]]);
+      const taps = ev.filter(e => e.track === 2);
+      expect(taps.length).toBeGreaterThanOrEqual(2); expect(taps.every(e => e.vel <= 0.375)).toBe(true);
+      expect(low[id].tracks.slice(0, 3).map(t => [t.name, t.choke])).toEqual([['Cajon Bass', true], ['Cajon Slap', true], ['Cajon Tap', true]]);
     });
+    // the first version of these pads, kept for telling an edited copy from an untouched one, was the bass alone
+    for (const first of cajonLowFirst()) expect(first.tracks.filter(t => t.steps.some(Boolean)).length).toBe(1);
+    expect(cajonLowFirst().map(p => p.id)).toEqual([...RIG_44.cajon, ...RIG_68.cajon]);
   });
   it('a link only resolves to a real pad, and an old 16-pad song gains an empty second page', () => {
     const pads = rigPads();
@@ -189,7 +196,12 @@ describe('default pad layout', () => {
     expect(renderPattern(p68['rig68-clap-4']).map(e => [e.beat, e.track])).toEqual([[1, 0], [3, 1], [5, 2], [7, 0]]);
     expect(at('rig68-kick-1')).toEqual([[0, 1]]); expect(at('rig68-kick-1-4')).toEqual([[0, 1], [1, 0.75]]);
     expect(at('rig68-kick-1-3-4').map(x => x[0])).toEqual([0, 0.667, 1]); expect(at('rig68-kick-1-4-6').map(x => x[0])).toEqual([0, 1, 1.667]);
-    RIG_68.cajon.forEach((id, n) => expect(renderPattern(p68[id])).toEqual(renderPattern(p68[RIG_68.kick[n]])));
+    RIG_68.cajon.forEach((id, n) => {
+      const ev = renderPattern(p68[id]), bars = p68[id].bars;
+      expect(ev.filter(e => e.track === 0)).toEqual(renderPattern(p68[RIG_68.kick[n]]));
+      expect(ev.filter(e => e.track === 1).map(e => e.beat)).toEqual(Array.from({ length: bars }, (_, k) => k * 2 + 1));    // slap on 4 of every bar
+      expect(ev.filter(e => e.track === 2).every(e => e.vel <= 0.375)).toBe(true);
+    });
     const build = at('rig68-kick-build').map(x => x[1]);                                                       // six eighths: big, drop, climb
     expect(build).toEqual([1, 0.25, 0.375, 0.5, 0.625, 0.875]);
     for (const n of [1, 2, 3, 4]) {

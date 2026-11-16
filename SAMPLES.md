@@ -76,7 +76,7 @@ A new song, and "Default layout" in the Kit menu, puts this on the pads. It is b
 
 Exclusive groups: pads 2 and 3 (A); every cajon pad, which is pads 5 to 8 and the cajon bass loops on pads 9 to 14 of page 1 (B); the kick loops on page 2 and the kick build (C). Starting one pad in a group stops the others in it on the same bar line, so one cajon part plays at a time and a kick loop can run alongside it.
 
-Colors, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. Change a pad's color in Edit view. The cajon loops on pads 9 to 14 use the Cajon Bass sample, the kick loops the Thick Kick; both cut their own previous hit, so busy figures stay tight.
+Colors, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. Change a pad's color in Edit view. On page 1, pads 9 to 14 are cajon grooves built on the kick figures: the Cajon Bass plays the kick loop's part, the slap takes 2 and 4, and soft taps fill in. The kick loops use the Thick Kick. Each track cuts its own previous hit, so busy figures stay tight.
 
 ### In 6/8
 
@@ -97,6 +97,8 @@ A song in 6/8 (or 9/8, 12/8) gets the same layout built from 6/8 patterns. Count
 | 14 | Cajon Worship B | Worship Kick B | Two bars: 1, 4 and 6, then 1, 2 and 4 |
 | 15 | Kick Build | same pad | Six eighth notes on the kick: big downbeat, drop, climb |
 | 16 | Stomp on 1 | same pad | One stomp on each downbeat, a different take every bar |
+
+In 6/8 the cajon pads on 9 to 14 are grooves too: bass on the kick's part, slap on 4, soft taps on the other eighth notes.
 
 The six shaker strokes (`Shaker Hit A` and `B`, `Shaker Mid A` and `B`, `Shaker Soft A` and `B`) were cut from Justin's `80BPM SHAKER.wav`, one from each stroke of its two-beat cell.
 
