@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { openKV, memoryKV } from '../../src/store/db';
 import { loadState, STATE_KEY, audioKey } from '../../src/store/migrate';
-import { normalizeState, defaultState, PADS } from '../../src/store/model';
-import { applySeeds, SEEDS } from '../../src/store/seeds';
+import { normalizeState, defaultState, rigPads, PADS } from '../../src/store/model';
+import { applySeeds, applyPatches, SEEDS } from '../../src/store/seeds';
 import { pulseBpm } from '../../src/engine/time';
 
 /** Write data the way the first version of the app did. */
@@ -91,6 +91,8 @@ describe('the ready-made set', () => {
       'Bless God C 72.5 4/4', 'Cornerstone C 72 4/4', 'No One Like the Lord E 72 4/4', 'Here Again C 68 4/4',
       'Great Are You Lord Bb 74 6/8', 'I Surrender E 76.5 6/8', 'Tremble B 74 4/4', 'Send Me B 66 4/4']);
     for (const s of songs) { expect(s.pads.length).toBe(PADS); expect(s.kit).toBe('rig'); expect(s.pageNames).toEqual(['Cajon', 'Kick']); }
+    // eighth-note click subdivisions on the 4/4 songs only
+    expect(songs.map(s => s.click.sub)).toEqual(['8', '8', '8', '8', 'off', 'off', '8', '8']);
     // the two 6/8 songs count their tempo in quarter notes, and use the 6/8 patterns
     expect(songs.filter(s => s.tempoCount === 'quarter').map(s => s.name)).toEqual(['Great Are You Lord', 'I Surrender']);
     expect(pulseBpm(songs[4].bpm, songs[4].ts, songs[4].tempoCount)).toBeCloseTo(49.333, 3);
@@ -101,6 +103,35 @@ describe('the ready-made set', () => {
     state.sets = state.sets.filter(s => s.id !== set.id); state.songs = state.songs.filter(s => !set.songIds.includes(s.id));
     const back = normalizeState(JSON.parse(JSON.stringify(state)));
     expect(back.seeded).toEqual(SEEDS.map(s => s.id));
+    expect(defaultState().songs[0].click.sub).toBe('8');
     expect(applySeeds(back)).toBeNull(); expect(back.sets.length).toBe(1); expect(back.songs.length).toBe(1);
+  });
+  it('songs saved before the defaults changed get eighth-note click, cajon in group B and pad colors, once', () => {
+    const state = defaultState(), set = applySeeds(state)!;
+    // put the set back the way the earlier version saved it
+    for (const s of state.songs) {
+      s.click = { ...s.click, sub: 'off' };
+      s.pads = s.pads.map((p, i) => { const { color: _c, ...old } = p; return i >= 8 && i <= 13 ? { ...old, group: 'C' as const } : old; });
+    }
+    const mine = state.songs[0], six = state.songs.find(s => s.name === 'Great Are You Lord')!, four = state.songs.find(s => s.name === 'Tremble')!;
+    mine.pads[4] = { ...mine.pads[4], color: 'plum' };                       // a color chosen by hand
+    const saved = normalizeState(JSON.parse(JSON.stringify(state)));
+    expect(applyPatches(saved)).toBe(true);
+    const get = (id: string) => saved.songs.find(s => s.id === id)!;
+    expect(get(four.id).click.sub).toBe('8'); expect(get(mine.id).click.sub).toBe('8'); expect(get(six.id).click.sub).toBe('off');
+    for (const s of saved.songs) {
+      expect(s.pads.slice(8, 14).map(p => p.group).join(''), s.name).toBe('BBBBBB');
+      expect(s.pads[14].group).toBe('C'); expect(s.pads.slice(24, 30).every(p => p.group === 'C')).toBe(true);
+    }
+    expect(get(four.id).pads).toEqual(rigPads()); expect(get(six.id).pads).toEqual(rigPads({ num: 6, den: 8 }));
+    expect(get(mine.id).pads[4].color).toBe('plum');                         // kept
+    // once only: a later choice is not undone
+    get(four.id).click = { ...get(four.id).click, sub: 'off' };
+    get(four.id).pads[8] = { ...get(four.id).pads[8], group: 'C' }; delete get(four.id).pads[0].color;
+    const again = normalizeState(JSON.parse(JSON.stringify(saved)));
+    expect(applyPatches(again)).toBe(false);
+    const t = again.songs.find(s => s.id === four.id)!;
+    expect([t.click.sub, t.pads[8].group, t.pads[0].color]).toEqual(['off', 'C', undefined]);
+    expect(set.songIds.length).toBe(8);
   });
 });

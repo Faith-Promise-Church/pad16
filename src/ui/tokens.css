@@ -9,7 +9,7 @@
   --text: #F2F3F5;
   --text-2: #9AA1A9;
   --on-accent: #0B0C0E;
-  /* color carries state and nothing else */
+  /* saturated color carries state and nothing else */
   --playing: #3DDC84;
   --queued: #FFB020;
   --stopping: #FF5A4D;
@@ -20,6 +20,18 @@
   --meter-clip: #FF5A4D;
   --scrim: rgba(0, 0, 0, 0.6);
   --tint: 14%;
+  /* pad colors: muted, to tell pads apart. They never stand for a state. */
+  --pad-sand: #C2A878;
+  --pad-clay: #B8805F;
+  --pad-rose: #B47A86;
+  --pad-plum: #8E7AA8;
+  --pad-slate: #6F87A8;
+  --pad-teal: #5E9C9A;
+  --pad-sage: #7FA07A;
+  --pad-stone: #8C9199;
+  --tint-pad: 20%;
+  --tint-pad-edge: 50%;
+  --tint-swatch: 70%;
 
   /* type: one family. DIN ships only in the iOS build; the web build falls back to Barlow. */
   --font: "DIN", "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -83,6 +95,15 @@
   --meter-clip: #B3231A;
   --scrim: rgba(11, 12, 14, 0.45);
   --tint: 16%;
+  --pad-sand: #9A7B3F;
+  --pad-clay: #9A5A38;
+  --pad-rose: #95505F;
+  --pad-plum: #6A5390;
+  --pad-slate: #456594;
+  --pad-teal: #2F7775;
+  --pad-sage: #4E7A48;
+  --pad-stone: #666C75;
+  --tint-pad: 22%;
 }
 
 /* iPhone: one step down the scale. Nothing goes under 12 px. */

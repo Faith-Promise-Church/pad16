@@ -135,6 +135,15 @@ h2, p { margin: 0; }
 .pad canvas { position: absolute; inset: 30% 0 var(--h-progress) 0; width: 100%; height: 60%; opacity: 0.35; pointer-events: none; display: none; }
 #app[data-edit="true"] .pad canvas { display: block; }
 .pad.empty .pad-name { color: var(--text-2); font-weight: var(--w-regular); }
+/* pad colors: a muted tint and a bar along the top. The bar stays when a state color takes over the pad. */
+[data-color="sand"] { --pad-c: var(--pad-sand); } [data-color="clay"] { --pad-c: var(--pad-clay); } [data-color="rose"] { --pad-c: var(--pad-rose); } [data-color="plum"] { --pad-c: var(--pad-plum); }
+[data-color="slate"] { --pad-c: var(--pad-slate); } [data-color="teal"] { --pad-c: var(--pad-teal); } [data-color="sage"] { --pad-c: var(--pad-sage); } [data-color="stone"] { --pad-c: var(--pad-stone); }
+.pad[data-color] { background: color-mix(in srgb, var(--pad-c) var(--tint-pad), var(--surface)); border-color: color-mix(in srgb, var(--pad-c) var(--tint-pad-edge), var(--surface)); }
+.pad[data-color]::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: var(--h-progress); background: var(--pad-c); }
+.swatches { display: flex; flex-wrap: wrap; gap: var(--u); }
+.swatch { width: var(--touch); height: var(--touch); padding: 0; border-radius: var(--r-ctl); border: var(--hair) solid var(--hairline); background: var(--raised); display: grid; place-items: center; color: var(--text-2); }
+.swatch[data-color] { background: color-mix(in srgb, var(--pad-c) var(--tint-swatch), var(--surface)); border-color: var(--pad-c); }
+.swatch[aria-pressed="true"] { outline: var(--outline) solid var(--select); outline-offset: var(--outline); }
 .pad[data-lit="true"], .pad[data-state="playing"] { background: color-mix(in srgb, var(--playing) var(--tint), var(--surface)); border-color: var(--playing); }
 .pad[data-state="playing"] .pad-state { color: var(--playing); }
 .pad[data-state="playing"] .pad-progress, .pad[data-state="stopping"] .pad-progress { opacity: 1; }

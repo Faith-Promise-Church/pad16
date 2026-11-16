@@ -165,6 +165,7 @@ export function gridView(ui: UI): View {
         const ic = cfg.mode === 'pattern' ? 'pattern' : cfg.mode === 'loop' ? 'loop' : cfg.mode === 'hold' ? 'hold' : 'oneshot';
         if (ic !== c.typeIcon) { c.typeIcon = ic; c.type.replaceChildren(icon(ic)); }
         c.group.textContent = cfg.group;
+        if (cfg.color) c.b.dataset.color = cfg.color; else delete c.b.dataset.color;
         c.b.classList.toggle('empty', cfg.mode !== 'pattern' && !rt.buffer);
         c.b.classList.toggle('sel', edit && app.selected === i);
         c.b.setAttribute('aria-label', `Pad ${slot + 1}, key ${KEYS[slot]}, ${nm}, ${cfg.mode === 'oneshot' ? 'one shot' : cfg.mode}`);

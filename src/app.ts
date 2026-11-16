@@ -6,7 +6,7 @@ import { stretchLoop, warmStretch, stretchAmount } from './engine/stretch';
 import { detectTempo } from './engine/detect';
 import { parseTags } from './engine/tags';
 import { beatsPerBar, clampBpm, pulseBpm, shownBpm, TimeSig, ClickKind } from './engine/time';
-import { applySeeds } from './store/seeds';
+import { applySeeds, applyPatches } from './store/seeds';
 import { TrackSrc } from './engine/patterns';
 import { KV, openKV } from './store/db';
 import { loadState, STATE_KEY } from './store/migrate';
@@ -53,6 +53,7 @@ export class App {
     this.state = loaded.state; this.migrated = loaded.migrated;
     // a ready-made set that this iPad has not had yet: add it and open it. Saved songs and sets are left as they are.
     const seeded = applySeeds(this.state);
+    if (applyPatches(this.state)) this.kv.put(STATE_KEY, this.state).catch(() => {});
     if (seeded) { this.state.currentSet = seeded.id; this.state.currentSong = seeded.songIds[0] || this.state.currentSong; this.kv.put(STATE_KEY, this.state).catch(() => {}); setTimeout(() => this.toast(`Added the set "${seeded.name}".`, 6000), 800); }
     try { if ((navigator as any).audioSession) (navigator as any).audioSession.type = 'playback'; } catch { /* not Safari */ }
     const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;

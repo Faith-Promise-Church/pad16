@@ -192,11 +192,17 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(8)).toHaveAttribute('data-state', 'stopped');
     await expect(page.locator('.page-tab').nth(0)).toHaveAttribute('data-busy', 'true');    // the cajon loop plays on, out of view
     expect(await app(page, 'a => [a.padAt(0), a.padAt(8), a.padAt(14)]')).toEqual([0, 24, 14]);
-    // the low loops are one group across both pages: a kick loop takes over from the cajon loop on the bar line
+    // kick loops and cajon loops are separate groups: a kick loop joins the cajon bass loop
     await page.locator('.pad').nth(11).tap();                                          // Four on the Floor
     await expect(page.locator('.pad').nth(11)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
+    expect(await app(page, 'a => a.eng.pads.view(8).state')).toBe('playing');
+    // every cajon pad is one group: a cajon loop takes over from the cajon bass loop on the bar line, the kick plays on
+    await page.locator('.pad').nth(4).tap();                                           // Cajon Basic
+    await expect(page.locator('.pad').nth(4)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
+    expect(await app(page, 'a => [a.eng.pads.view(8).state, a.eng.pads.view(27).state]')).toEqual(['stopped', 'playing']);
     await expect(page.locator('.page-tab').nth(0)).toHaveAttribute('data-busy', 'false');
-    expect(await app(page, 'a => a.eng.pads.view(8).state')).toBe('stopped');
+    // muted colors by instrument; a shared slot shows its pad's color on both pages
+    expect(await page.locator('.pad').evaluateAll(els => els.map(e => (e as HTMLElement).dataset.color))).toEqual(['sage', 'teal', 'teal', 'rose', 'clay', 'clay', 'clay', 'clay', 'slate', 'slate', 'slate', 'slate', 'slate', 'slate', 'plum', 'stone']);
     // a shared pad stops from either page
     await page.locator('.pad').nth(0).tap();
     await page.locator('.page-tab').nth(0).tap();
@@ -212,6 +218,12 @@ test.describe('stage behavior', () => {
     await page.locator('.pad').nth(1).tap();
     expect(await app(page, 'a => [a.selected, a.selectedVia]')).toEqual([1, 17]);
     await expect(page.locator('.editor .note.shared')).toContainText('same pad as Cajon, pad 2');
+    // pick a color in the editor: it shows on both pages; "No color" clears it
+    await page.locator('.editor .swatch[data-color="rose"]').click();
+    await expect(page.locator('.pad').nth(1)).toHaveAttribute('data-color', 'rose');
+    expect(await app(page, 'a => a.song.pads[1].color')).toBe('rose');
+    await page.locator('.editor .swatch').first().click();
+    expect(await app(page, 'a => [a.song.pads[1].color, document.querySelectorAll(".pad")[1].dataset.color]')).toEqual([undefined, undefined]);
     await app(page, 'a => a.patchPad(a.selected, { name: "Tambo" })');
     await page.locator('.page-tab').nth(0).tap();
     await expect(page.locator('.pad').nth(1).locator('.pad-name')).toHaveText('Tambo');
@@ -231,6 +243,7 @@ test.describe('stage behavior', () => {
     await app(page, 'a => a.selectSong("set-2026-11-acoustic-5")');
     await expect(page.locator('.song-name').first()).toHaveText('Great Are You Lord');
     await expect(page.locator('.bpm-num')).toHaveText('74');
+    expect(await app(page, 'a => a.setSongs.map(s => s.click.sub)')).toEqual(['8', '8', '8', '8', 'off', 'off', '8', '8']);
     // 74 on the chart is in quarter notes: eighths at 148, a pulse of 49.33, and MIDI clock at 74
     expect(await app(page, 'a => [Math.round(a.eng.transport.targetBpm * 1000) / 1000, Math.round(a.eng.clock.bpm * 1.5 * 100) / 100]')).toEqual([49.333, 74]);
     await expect(page.locator('.pad .pad-name')).toHaveText(['Shaker', 'Tambo on 4', 'Tambo Every Other Bar', 'Claps on 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time',
@@ -248,7 +261,7 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(8).locator('.pad-name')).toHaveText('Cajon on 1');
     expect(await app(page, 'a => [a.page, a.eng.transport.targetBpm, a.song.pads[0].mode]')).toEqual([0, 74, 'loop']);
     // the set is added once: deleting it sticks
-    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic']);
+    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors']);
   });
   test('a stretched loop keeps sounding through a tempo change and its next loop point @webkit', async ({ page }) => {
     test.setTimeout(90_000);

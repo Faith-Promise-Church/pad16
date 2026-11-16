@@ -74,7 +74,9 @@ A new song, and "Default layout" in the Kit menu, puts this on the pads. It is b
 | 15 | Kick Build | same pad | Eighth notes on the kick: a big downbeat, a drop, then a climb through the bar |
 | 16 | Stomp on 1 | same pad | One stomp on each downbeat, a different take every bar |
 
-Exclusive groups: pads 2 and 3 (A), pads 5 to 8 (B), pads 9 to 15 on both pages (C). Starting one pad in a group stops the others in it on the same bar line. The cajon loops on pads 9 to 14 use the Cajon Bass sample, the kick loops the Thick Kick; both cut their own previous hit, so busy figures stay tight.
+Exclusive groups: pads 2 and 3 (A); every cajon pad, which is pads 5 to 8 and the cajon bass loops on pads 9 to 14 of page 1 (B); the kick loops on page 2 and the kick build (C). Starting one pad in a group stops the others in it on the same bar line, so one cajon part plays at a time and a kick loop can run alongside it.
+
+Colors, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. Change a pad's color in Edit view. The cajon loops on pads 9 to 14 use the Cajon Bass sample, the kick loops the Thick Kick; both cut their own previous hit, so busy figures stay tight.
 
 ### In 6/8
 

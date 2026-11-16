@@ -28,7 +28,8 @@ There are two builds of the same code:
 - One-shot pads fire the moment you touch them. Loop and pattern pads wait for the next bar line (or whatever launch quantize you set), and blink while they wait. Tap a waiting pad to cancel.
 - Tap a playing loop to stop it. Each pad chooses how: now, on the next boundary, at the end of the loop, or with a fade.
 - Starting a loop or pattern while stopped starts the transport on a downbeat.
-- The pencil opens Edit view for the selected pad. The lock stops accidental edits on stage.
+- Pads carry a muted color by instrument. Bright green, amber and red always mean playing, waiting and stopping.
+- The pencil opens Edit view for the selected pad, where its color can be changed. The lock stops accidental edits on stage.
 - The octagon is Panic: all notes off, everything stopped with a 50 ms fade.
 - In 6/8, 9/8 and 12/8 the tempo can count quarter notes, the way charts print it (74 means eighth notes at 148), or the dotted-quarter pulse. Tempo sheet, "The tempo counts".
 - Arrow keys and Page Up or Page Down move between songs. A Bluetooth page-turner pedal sends those keys, so it works with no setup.

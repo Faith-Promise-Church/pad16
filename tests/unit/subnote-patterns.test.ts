@@ -128,11 +128,13 @@ describe('default pad layout', () => {
     expect(pads[0]).toMatchObject({ name: 'Shaker', mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32 });
     expect(pads.slice(1, PAGE).every(p => p.mode === 'pattern')).toBe(true);
     expect(pads.slice(1, PAGE).map(p => p.patternId)).toEqual([...RIG_44.shared, ...RIG_44.cajon, RIG_44.build, RIG_44.stomp]);
-    expect(pads.slice(0, PAGE).map(p => p.group).join('')).toBe('AA' + 'BBBB' + 'CCCCCCC');     // tambos, cajon loops, low loops and the build
+    expect(pads.slice(0, PAGE).map(p => p.group).join('')).toBe('AA' + 'BBBB' + 'BBBBBB' + 'C');   // tambos; every cajon pad, loops and bass loops alike; the build
+    expect(pads.slice(0, PAGE).map(p => p.color)).toEqual(['sage', 'teal', 'teal', 'rose', 'clay', 'clay', 'clay', 'clay', 'sand', 'sand', 'sand', 'sand', 'sand', 'sand', 'plum', 'stone']);
+    expect(pads.slice(24, 30).every(p => p.color === 'slate')).toBe(true); expect(pads[16].color).toBeUndefined();     // a linked slot shows its pad's color
     // page 2: slots 9 to 14 are kick loops of their own; the rest point at page 1, the build (slot 15) included
     expect(pads.slice(PAGE).map((p, slot) => p.link ?? p.patternId)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, ...RIG_44.kick, 14, 15]);
     expect(Array.from({ length: PAGE }, (_, slot) => padTarget(pads, PAGE + slot))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 24, 25, 26, 27, 28, 29, 14, 15]);
-    expect(pads.slice(24, 30).every(p => p.group === 'C')).toBe(true);                           // one group across both pages
+    expect(pads.slice(24, 30).every(p => p.group === 'C')).toBe(true);                           // kick loops share a group with the build, not with the cajon
     expect(pads[14].patternId).toBe('rig-kick-build');
     const all = Object.fromEntries(starterPatterns().map(p => [p.id, p]));
     for (const p of pads) if (p.mode === 'pattern') expect(all[p.patternId], p.patternId).toBeTruthy();
@@ -157,7 +159,8 @@ describe('default pad layout', () => {
     expect(old.pads.slice(PAGE).every(p => p.src.t === 'none' && p.link === undefined && p.mode === 'oneshot')).toBe(true);
   });
   it('a saved song still on the first default layout moves to two pages; one that was changed is left alone', () => {
-    const first = rigPads().slice(0, PAGE).map((p, i) => (i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8] } : p));
+    // the first layout as it was saved: kick loops in group C on pads 9 to 14, no colors
+    const first = rigPads().slice(0, PAGE).map((p, i) => { const { color: _c, ...old } = i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8], group: 'C' as const } : p; return old; });
     const saved = JSON.parse(JSON.stringify({ id: 'a', name: 'My pads', kit: 'rig', bpm: 80, pads: first }));
     const up = normalizeSong(saved);
     expect(up.pads).toEqual(rigPads()); expect(up.pageNames).toEqual(['Cajon', 'Kick']); expect(up.name).toBe('My pads');
@@ -174,6 +177,7 @@ describe('default pad layout', () => {
     expect(pads[0]).toMatchObject({ name: 'Shaker', mode: 'pattern', patternId: 'rig68-shaker' });
     expect(pads.slice(1, PAGE).map(p => p.patternId)).toEqual([...RIG_68.shared, ...RIG_68.cajon, RIG_68.build, RIG_68.stomp]);
     expect(pads.slice(24, 30).map(p => p.patternId)).toEqual(RIG_68.kick);
+    expect(pads.slice(0, PAGE).map(p => p.group).join('')).toBe('AA' + 'BBBB' + 'BBBBBB' + 'C'); expect(pads[0].color).toBe('sage'); expect(pads[8].color).toBe('sand');
     expect(pads.slice(0, PAGE).map(p => p.name)).toEqual(['Shaker', 'Tambo on 4', 'Tambo Every Other Bar', 'Claps on 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time',
       'Cajon on 1', 'Cajon 1 and 4', 'Cajon 1 3 4', 'Cajon 1 4 6', 'Cajon Worship A', 'Cajon Worship B', 'Kick Build', 'Stomp on 1']);
     for (const p of Object.values(p68)) { expect(p.ts).toEqual({ num: 6, den: 8 }); expect(p.bpb).toBe(2); expect(p.spb).toBe(6); expect(renderPattern(p).length).toBeGreaterThan(0); }

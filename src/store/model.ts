@@ -13,7 +13,11 @@ export interface PadConfig {
   quantize: Quant | 'global'; stopMode: StopMode; fadeBeats: number; group: Group; patternId: string;
   /** This slot shows another pad (by index) instead of holding one of its own, so one pad can sit on both pages. */
   link?: number;
+  /** A muted color to tell pads apart at a glance. It never stands for a state: playing, queued and stopping keep their own colors. */
+  color?: PadColor;
 }
+export const PAD_COLORS = ['sand', 'clay', 'rose', 'plum', 'slate', 'teal', 'sage', 'stone'] as const;
+export type PadColor = (typeof PAD_COLORS)[number];
 /** Pads on a page, pages in a song, and pads in a song. */
 export const PAGE = 16, PAGES = 2, PADS = PAGE * PAGES;
 export interface ClickSettings {
@@ -96,14 +100,31 @@ export const RIG_KIT = 'rig';
 export const RIG_PAGES = ['Cajon', 'Kick'];
 export function rigPads(ts: TimeSig = { num: 4, den: 4 }): PadConfig[] {
   const L = isCompound(ts) ? RIG_68 : RIG_44, six = L === RIG_68;
-  const group = (slot: number): Group => (slot === 1 || slot === 2 ? 'A' : slot >= 4 && slot <= 7 ? 'B' : slot >= 8 && slot <= 14 ? 'C' : '');
+  // every cajon pad is group B, so only one cajon part plays at a time; the kick loops and the build are group C
+  const group = (i: number): Group => { const slot = i % PAGE; return slot === 1 || slot === 2 ? 'A' : slot >= 4 && slot <= 7 ? 'B' : slot >= 8 && slot <= 13 ? (i < PAGE ? 'B' : 'C') : slot === 14 ? 'C' : ''; };
   // 6/8 pattern names carry "6/8" so they can be told apart in the pattern list; on the pad that is noise
-  const pat = (i: number, id: string): PadConfig => ({ ...defaultPad(i), src: { t: 'none' }, mode: 'pattern', patternId: id, group: group(i % PAGE), name: six ? patternLabel(id) : '' });
+  const pat = (i: number, id: string): PadConfig => ({ ...defaultPad(i), src: { t: 'none' }, mode: 'pattern', patternId: id, group: group(i), name: six ? patternLabel(id) : '', ...(RIG_COLOR.has(id) ? { color: RIG_COLOR.get(id) } : {}) });
   const page1 = [L.shaker, ...L.shared, ...L.cajon, L.build, L.stomp].map((id, i): PadConfig => id ? (i === 0 ? { ...pat(0, id), name: 'Shaker' } : pat(i, id))
-    : { ...defaultPad(0), name: 'Shaker', src: { t: 'kit', kit: 'Acoustic Set', file: 'Shaker 80 [loop] [80bpm] [8bars].wav' }, mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32, conf: 1 });
+    : { ...defaultPad(0), name: 'Shaker', src: { t: 'kit', kit: 'Acoustic Set', file: 'Shaker 80 [loop] [80bpm] [8bars].wav' }, mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32, conf: 1, color: 'sage' });
   const page2 = Array.from({ length: PAGE }, (_, slot): PadConfig => slot >= 8 && slot <= 13 ? pat(PAGE + slot, L.kick[slot - 8]) : { ...defaultPad(PAGE + slot), link: slot });
   return [...page1, ...page2];
 }
+/** Colors of the default layout, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. */
+const RIG_COLOR = new Map<string, PadColor>();
+for (const L of [RIG_44, RIG_68]) {
+  if (L.shaker) RIG_COLOR.set(L.shaker, 'sage');
+  L.shared.forEach((id, n) => RIG_COLOR.set(id, n < 2 ? 'teal' : n === 2 ? 'rose' : 'clay'));
+  for (const id of L.cajon) RIG_COLOR.set(id, 'sand');
+  for (const id of L.kick) RIG_COLOR.set(id, 'slate');
+  RIG_COLOR.set(L.build, 'plum'); RIG_COLOR.set(L.stomp, 'stone');
+}
+const CAJON_LOW = new Set([...RIG_44.cajon, ...RIG_68.cajon]);
+/** The default layout's color for a pad, or undefined when the pad is not one of its parts. */
+export function rigColor(p: PadConfig): PadColor | undefined {
+  if (p.mode === 'pattern') return RIG_COLOR.get(p.patternId);
+  return p.mode === 'loop' && p.src.t === 'kit' && /^Shaker/i.test(p.src.file) ? 'sage' : undefined;
+}
+export const isCajonLow = (p: PadConfig) => p.mode === 'pattern' && CAJON_LOW.has(p.patternId);
 const LABELS = new Map<string, string>();
 function patternLabel(id: string): string {
   if (!LABELS.size) for (const p of starterPatterns()) LABELS.set(p.id, p.name.replace(/^6\/8 /, ''));
@@ -112,7 +133,7 @@ function patternLabel(id: string): string {
 /** The default layout as it was before it had two pages: 16 pads, kick loops on pads 9 to 14. */
 function firstRigPads(): PadConfig[] {
   const one = rigPads();
-  return one.slice(0, PAGE).map((p, i) => (i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8] } : p));
+  return one.slice(0, PAGE).map((p, i) => { const { color: _c, ...old } = i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8], group: 'C' as Group } : p; return old; });
 }
 const canon = (o: any) => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
 /** True for a saved song still on that first default layout with nothing changed, which can move to the two-page layout safely. */
@@ -140,7 +161,7 @@ export const defaultRouting = (): Routing => ({
 });
 export const defaultSong = (name = 'New song'): Song => ({
   id: uid(), name, bpm: 80, ts: { num: 4, den: 4 }, key: 0, kit: RIG_KIT, pads: rigPads(), pageNames: [...RIG_PAGES],
-  quantize: 'bar', click: defaultClick(), sub: defaultSub(), tonic: defaultTonic(), notes: '',
+  quantize: 'bar', click: { ...defaultClick(), sub: '8' }, sub: defaultSub(), tonic: defaultTonic(), notes: '',
 });
 export const defaultSettings = (): Settings => ({
   theme: 'dark', editLock: false, edit: false, countInOnPadLaunch: false, routingByDevice: {}, cueOffsetMs: 0, clickBackend: 'auto', pedalKeys: true, clickSound: '',

@@ -23,6 +23,16 @@ Everything below is defined once in [`src/ui/tokens.css`](../src/ui/tokens.css).
 | `--cue` | `#4DA3FF` | `#0A56B0` | Click and cue |
 | `--select` | `#FFFFFF` | `#0B0C0E` | Selection outline |
 | `--meter-ok`, `--meter-warn`, `--meter-clip` | green, amber, red | darkened | Meters |
+| `--pad-sand` | `#C2A878` | `#9A7B3F` | Pad color |
+| `--pad-clay` | `#B8805F` | `#9A5A38` | Pad color |
+| `--pad-rose` | `#B47A86` | `#95505F` | Pad color |
+| `--pad-plum` | `#8E7AA8` | `#6A5390` | Pad color |
+| `--pad-slate` | `#6F87A8` | `#456594` | Pad color |
+| `--pad-teal` | `#5E9C9A` | `#2F7775` | Pad color |
+| `--pad-sage` | `#7FA07A` | `#4E7A48` | Pad color |
+| `--pad-stone` | `#8C9199` | `#666C75` | Pad color |
+
+Pad colors are muted on purpose. They tell pads apart (by instrument in the default layout) and never show state: a colored pad is tinted at `--tint-pad` (20%, 22% in daylight) with a bar of the full color along its top edge. A state color takes over the tint and border; the bar stays.
 
 State is never shown by color alone. A playing pad is tinted, has a brighter border, a progress bar and the word "Playing". A queued pad has a dashed border and the word "Queued". Toggles say On or Off. Bus routing says Main or Cue.
 

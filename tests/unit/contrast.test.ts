@@ -33,6 +33,18 @@ for (const [name, t] of [['dark', dark], ['daylight', light]] as const) {
         expect(ratio(rgb(t[st]), pad), `${st} label on its pad`).toBeGreaterThanOrEqual(4.5);
       }
     });
+    it('text stays readable on a pad tinted with a muted pad color, and the muted colors do not pass for state colors', () => {
+      const a = name === 'dark' ? 0.2 : 0.22, names = ['sand', 'clay', 'rose', 'plum', 'slate', 'teal', 'sage', 'stone'];
+      expect(css).toContain(`--tint-pad: ${a * 100}%`);
+      const sat = (c: number[]) => { const mx = Math.max(...c), mn = Math.min(...c); return mx === 0 ? 0 : (mx - mn) / mx; };
+      for (const n of names) {
+        const c = rgb(t['pad-' + n]), pad = mix(c, rgb(t.surface), a);
+        expect(ratio(rgb(t.text), pad), `text on ${n} pad`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(rgb(t['text-2']), pad), `secondary on ${n} pad`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(c, rgb(t.surface)), `${n} bar on the surface`).toBeGreaterThanOrEqual(3);
+        for (const st of ['playing', 'queued', 'stopping']) expect(sat(c), `${n} is quieter than ${st}`).toBeLessThan(sat(rgb(t[st])) - 0.1);
+      }
+    });
     it('text on filled accent buttons holds 4.5:1', () => {
       for (const st of ['playing', 'queued', 'stopping', 'cue', 'text']) expect(ratio(rgb(t['on-accent']), rgb(t[st])), `label on ${st}`).toBeGreaterThanOrEqual(4.5);
     });

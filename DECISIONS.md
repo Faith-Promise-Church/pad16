@@ -123,3 +123,10 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 72. **The 6/8 shaker is a pattern of single strokes cut from the 80 BPM loop**, not the loop. Stretched to fit, the loop's own accents (every quarter note) would fight the 6/8 pulse. The loop turned out to be one two-beat cell repeated, with six distinct strokes; the pattern plays the strong ones on 1 and 4, light and medium eighths between, and a soft pickup into each pulse.
 73. **The set is built in and added once.** Opening the app online adds "Acoustic set" (8 songs) beside whatever is saved and opens it. It is tracked by id, so editing or deleting it sticks. This avoids moving a file onto the iPad.
 74. **Song keys are major keys** as given (the pad sets are major). "I Surrender" in E uses the E major pad.
+
+## Click, groups and color
+
+75. **4/4 songs click with eighth-note subdivisions.** It is the default for new songs and was set once on the saved 4/4 songs that still had subdivisions off. The 6/8 songs are unchanged.
+76. **Every cajon pad is group B.** The cajon bass loops moved from group C to B, in every song. One cajon part plays at a time. The kick loops and the kick build stay in group C, so a kick loop can run alongside a cajon part. This replaces the grouping in 68.
+77. **Muted pad colors.** Eight desaturated colors a pad can carry as a tint and a bar along its top edge. They tell pads apart; they never show state. Playing, queued and stopping keep their saturated colors and take over the tint, and the bar stays. The default layout is colored by instrument, and saved songs got those colors once, on pads that had none. Every color is a token, in both themes, and the contrast test covers text on each tint.
+78. **Changes to saved songs run once, by id** (the same list that tracks the built-in set). Each one only moves a value that is still at its old default, and a later choice by hand is never undone.

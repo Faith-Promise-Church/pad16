@@ -6,7 +6,7 @@ import { QUANTS, QUANT_LABEL, Quant, beatsPerBar } from '../engine/time';
 import { confidenceLabel } from '../engine/detect';
 import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc, LEVELS, LEVEL_NORMAL, stepVel } from '../engine/patterns';
 import { SOUNDS } from '../engine/synthkit';
-import { Group, StopMode, SyncMode, uid, PAGE } from '../store/model';
+import { Group, StopMode, SyncMode, uid, PAGE, PAD_COLORS, PadColor } from '../store/model';
 import { PadMode } from '../engine/tags';
 
 export function editorView(ui: UI): View {
@@ -20,6 +20,14 @@ export function editorView(ui: UI): View {
   const load = btn({ label: 'Load sample', cls: 'primary grow', onClick: () => file.click() });
   const reset = btn({ label: 'Reset pad', cls: 'ghost grow', onClick: () => app.resetPad(app.selected) });
   const info = h('p', { class: 'help' });
+  // color: none, or one of the muted pad colors
+  const swatches = (['', ...PAD_COLORS] as Array<PadColor | ''>).map(c => {
+    const label = c ? c[0].toUpperCase() + c.slice(1) : 'No color';
+    const b = h('button', { class: 'swatch', title: label, attrs: { type: 'button', 'aria-label': label, ...(c ? { 'data-color': c } : {}) } }, ...(c ? [] : [icon('close', 'small')]));
+    b.addEventListener('click', () => { const i = app.selected, cfg = { ...app.song.pads[i] }; if (c) cfg.color = c; else delete cfg.color; app.song.pads[i] = cfg; app.eng.pads.setPad(i, cfg, app.eng.pads.pads[i].buffer); app.changed(); });
+    return { b, c };
+  });
+  const colorField = field('Color', h('div', { class: 'swatches', attrs: { role: 'group', 'aria-label': 'Pad color' } }, ...swatches.map(x => x.b)));
   // a slot that shows a pad from the other page
   const sharedText = h('span', { class: 'grow' }), shared = h('div', { class: 'note shared', attrs: { hidden: '' } }, sharedText, btn({ label: 'Make separate', cls: 'ghost', onClick: () => app.unlinkPad(app.selectedVia) }));
   const wave = h('canvas', { class: 'editor-wave' });
@@ -64,7 +72,7 @@ export function editorView(ui: UI): View {
   const sampleSec = h('section', {}, h('div', { class: 'row' }, load, reset), info, wave);
   const levelSec = h('section', {}, vol.el, field('Pitch', pitch.el));
   const el = h('section', { class: 'editor', attrs: { 'aria-label': 'Pad settings' } },
-    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, file);
+    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), colorField, field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, file);
   let drawn: AudioBuffer | null = null, drawnW = 0;
   function drawWave(buffer: AudioBuffer | null) {
     const r = wave.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -93,6 +101,7 @@ export function editorView(ui: UI): View {
       if (via !== i) sharedText.textContent = `This is the same pad as ${where(i)}. A change here changes it on both pages.`;
       name.set(p.name); name.el.placeholder = app.padName(i);
       mode.set(p.mode); vol.set(p.volume); pitch.set(p.pitch);
+      for (const x of swatches) x.b.setAttribute('aria-pressed', String((p.color || '') === x.c));
       reset.disabled = p.src.t === 'builtin' && p.mode === 'oneshot' && !p.name;
       info.textContent = isPat ? 'This pad plays a pattern built from samples. It follows the master tempo with no stretching.'
         : !b ? 'No sample loaded.'
