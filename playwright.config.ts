@@ -10,9 +10,11 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   reporter: [['list']],
-  use: {
-    baseURL: 'http://localhost:5173',
-    launchOptions: { executablePath: process.env.PW_CHROME || local, args: ['--autoplay-policy=no-user-gesture-required'] },
-  },
+  use: { baseURL: 'http://localhost:5173' },
+  projects: [
+    { name: 'chrome', use: { browserName: 'chromium', launchOptions: { executablePath: process.env.PW_CHROME || local, args: ['--autoplay-policy=no-user-gesture-required'] } } },
+    // Safari, the iPad and every iOS browser run on WebKit. The tests tagged @webkit cover what has broken there.
+    { name: 'webkit', use: { browserName: 'webkit' }, grep: /@webkit/ },
+  ],
   webServer: { command: 'npx vite --port 5173 --strictPort', url: 'http://localhost:5173/tests/harness.html', reuseExistingServer: true, timeout: 60_000 },
 });

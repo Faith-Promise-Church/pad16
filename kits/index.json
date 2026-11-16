@@ -122,6 +122,30 @@
           "name": "Shaker Accent"
         },
         {
+          "file": "Shaker Hit A.wav",
+          "name": "Shaker Hit A"
+        },
+        {
+          "file": "Shaker Hit B.wav",
+          "name": "Shaker Hit B"
+        },
+        {
+          "file": "Shaker Mid A.wav",
+          "name": "Shaker Mid A"
+        },
+        {
+          "file": "Shaker Mid B.wav",
+          "name": "Shaker Mid B"
+        },
+        {
+          "file": "Shaker Soft A.wav",
+          "name": "Shaker Soft A"
+        },
+        {
+          "file": "Shaker Soft B.wav",
+          "name": "Shaker Soft B"
+        },
+        {
           "file": "Tambourine Short.wav",
           "name": "Tambourine Short"
         }

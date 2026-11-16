@@ -1,6 +1,6 @@
 // The one master clock. A tempo map of segments, each starting on a bar line (or at the run start).
 // Beats are continuous inside a run; start() begins a new run at beat 0 (or a negative beat for a count-in).
-import { TimeSig, beatsPerBar, barBeat, BarBeat, clampBpm } from './time';
+import { TimeSig, beatsPerBar, barBeat, BarBeat, clampBeat } from './time';
 
 export interface Segment { time: number; beat: number; bar: number; bpm: number; ts: TimeSig }
 
@@ -11,7 +11,7 @@ export class Clock {
   onChange: Array<(seg: Segment, newRun: boolean) => void> = [];
 
   constructor(bpm = 96, ts: TimeSig = { num: 4, den: 4 }, time = 0) {
-    this.segments = [{ time, beat: 0, bar: 0, bpm: clampBpm(bpm), ts }];
+    this.segments = [{ time, beat: 0, bar: 0, bpm: clampBeat(bpm), ts }];
   }
   get last(): Segment { return this.segments[this.segments.length - 1]; }
   get bpm(): number { return this.last.bpm; }
@@ -44,14 +44,14 @@ export class Clock {
   /** Begin a new run: beat startBeat happens at time. Use a negative startBeat for a count-in. */
   restart(time: number, startBeat = 0, bpm = this.bpm, ts = this.ts): void {
     const bpb = beatsPerBar(ts);
-    this.segments = [{ time, beat: startBeat, bar: Math.round(startBeat / bpb), bpm: clampBpm(bpm), ts }];
+    this.segments = [{ time, beat: startBeat, bar: Math.round(startBeat / bpb), bpm: clampBeat(bpm), ts }];
     this.run++;
     this.emit(true);
   }
   /** Change tempo or meter right now, keeping the beat position continuous (used while stopped, when bars do not matter). */
   setNow(time: number, bpm = this.bpm, ts = this.ts): void {
     const beat = this.beatAt(time);
-    this.segments = [{ time, beat, bar: 0, bpm: clampBpm(bpm), ts }];
+    this.segments = [{ time, beat, bar: 0, bpm: clampBeat(bpm), ts }];
     this.emit(false);
   }
   /** Change tempo or meter at the next bar line after time (used while playing). Returns the beat it lands on. */
@@ -62,7 +62,7 @@ export class Clock {
     const beat = this.nextBarLine(now + 1e-4);
     const at = this.timeAt(beat);
     const bar = this.barBeatAt(beat - 1e-6).bar + 1;
-    this.segments.push({ time: at, beat, bar, bpm: clampBpm(bpm), ts });
+    this.segments.push({ time: at, beat, bar, bpm: clampBeat(bpm), ts });
     this.emit(false);
     return beat;
   }

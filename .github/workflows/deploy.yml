@@ -65,7 +65,7 @@ jobs:
         if: hashFiles(format('{0}/playwright.config.ts', github.ref_name == 'main' && 'main' || 'next')) != ''
         working-directory: ${{ github.ref_name == 'main' && 'main' || 'next' }}
         run: |
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
           npx playwright test
 
       - uses: actions/configure-pages@v5

@@ -19,7 +19,7 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 
 ## Phase 3: loop tempo and stretch
 
-10. **Stretch renders in an OfflineAudioContext, not a Worker.** Signalsmith Stretch (MIT) ships as a Web Audio node. Running it inside an offline context renders on the audio rendering thread, off the page thread and never during playback, which is what the brief wanted from a Worker. It is verified in Chrome (the 32-bar alignment test uses it). It is not verified on iOS Safari from here; if it fails there the pad stays in Repitch, shows "Repitch" on the pad, and says so in Edit view.
+10. **Stretch renders in a Worker, with no audio context.** Signalsmith Stretch (MIT) ships as an audio worklet. It first ran inside an OfflineAudioContext, which works in Chrome but returns silence in Safari and on iOS (see 65). The Worker loads the same processor and drives it 128 frames at a time, so every browser runs the same code. A render that comes back silent, the wrong length or wildly off in level is thrown away and the pad stays in Repitch.
 11. **The loop is rendered twice around and the second pass is kept,** so the start and end of the stretched loop have real audio on both sides and the seam is clean.
 12. **Loops are re-triggered on the grid every pass** instead of using the browser's own looping. That is why they cannot drift, even across tempo changes.
 13. **70 against 140 BPM.** A file that could be either (bar-length math gives both) is read as the one that puts about two onsets on each beat. The x2 and /2 buttons are one tap away.
@@ -110,3 +110,16 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 62. **The 80 BPM shaker stays 8 bars long** instead of being cut to a shorter loop, to keep the player's own variation. It is set to Stretch; at 80 it plays untouched.
 63. **Syncopated kick, the part left open in the request ("..."):** the bar ends with a kick on the and of 4 as a pickup into the next downbeat.
 64. **TRAPPY TAMBO SNARE took the Snare slot** (pad 13 of the Acoustic Set), which was still a stand-in.
+
+## Tempo-change bug, pages, 6/8 and the set
+
+65. **The shaker died after a tempo change because Safari rendered silence.** The stretched copy came back from the OfflineAudioContext as a buffer of zeros in WebKit (Safari, the iPad, the Web MIDI browser), took over at the next loop point and stayed cached, so nothing brought the loop back. Fixed by 10. The browser tests now also run in WebKit for the cases that have broken there.
+66. **A finished stretch comes in on the next bar line**, with a 12 ms crossfade, instead of at the loop point. The shaker is 8 bars long; waiting for the loop point meant up to 24 seconds of repitched audio after a tempo change.
+67. **Two pages of 16 pads per song, 32 pads in the engine.** Switching page never stops anything. A slot can link to a pad on the other page, so the shared pads of the default layout (shaker, tambourines, claps, cajon loops, build, stomp) are one pad shown twice: lit on both pages, started on one and stopped on the other. Edit view says when a slot is shared and can make it separate.
+68. **Page 1 is all cajon, page 2 is the kick layout** (Justin's ask). The six cajon bass loops play the same rhythms as the six kick loops. The kick build stays on pad 15 of both pages. The low loops are one exclusive group across both pages, so a kick loop takes over from a cajon loop on the bar line.
+69. **A saved song still on the first default layout, with nothing changed, moves to the two-page layout on load.** A song with any change to its pads is left as it is, with an empty page 2.
+70. **6/8 tempo: the number can count quarter notes.** Justin's 6/8 songs are 74 and 76.5. Charts and MultiTracks print 6/8 that way (Great Are You Lord is listed at 72, eighth notes at 144). Per song, "The tempo counts" is quarter notes or the dotted-quarter pulse. Decision 4 still describes the clock: its beat in 6/8 is the dotted quarter (49.33 for a chart tempo of 74), and the Nord sees 74 on MIDI clock. Songs without the setting behave as before.
+71. **6/8 gets its own patterns.** A 4/4 pattern in a 6/8 song lands across the bar. The 6/8 layout mirrors the 4/4 one: tambourine and claps on 4 (the backbeat), four cajon loops, six low loops on cajon bass and on kick, a six-eighth build, and the stomp.
+72. **The 6/8 shaker is a pattern of single strokes cut from the 80 BPM loop**, not the loop. Stretched to fit, the loop's own accents (every quarter note) would fight the 6/8 pulse. The loop turned out to be one two-beat cell repeated, with six distinct strokes; the pattern plays the strong ones on 1 and 4, light and medium eighths between, and a soft pickup into each pulse.
+73. **The set is built in and added once.** Opening the app online adds "Acoustic set" (8 songs) beside whatever is saved and opens it. It is tracked by id, so editing or deleting it sticks. This avoids moving a file onto the iPad.
+74. **Song keys are major keys** as given (the pad sets are major). "I Surrender" in E uses the E major pad.

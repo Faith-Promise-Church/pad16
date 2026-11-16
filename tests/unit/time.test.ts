@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { beatsPerBar, beatLenQ, isCompound, subsPerBeat, quantBeats, nextBoundary, barBeat, clickEvents, swingOffset, quarterBpm, keyIndex, clampBpm } from '../../src/engine/time';
+import { beatsPerBar, beatLenQ, isCompound, subsPerBeat, quantBeats, nextBoundary, barBeat, clickEvents, swingOffset, quarterBpm, pulseBpm, shownBpm, clampBeat, keyIndex, clampBpm } from '../../src/engine/time';
 import { Clock } from '../../src/engine/clock';
 import { tapTempo } from '../../src/engine/transport';
 
@@ -127,5 +127,20 @@ describe('keys', () => {
   it('parses key names', () => {
     expect(keyIndex('C')).toBe(0); expect(keyIndex('Db')).toBe(1); expect(keyIndex('C#')).toBe(1); expect(keyIndex('B')).toBe(11);
     expect(keyIndex('F#m')).toBe(6); expect(keyIndex('H')).toBe(-1); expect(keyIndex('Cb')).toBe(11);
+  });
+});
+
+describe('6/8 chart tempos', () => {
+  const six = { num: 6, den: 8 } as const, four = { num: 4, den: 4 } as const;
+  it('a tempo counted in quarter notes gives a dotted-quarter pulse two thirds as fast', () => {
+    expect(pulseBpm(74, six, 'quarter')).toBeCloseTo(49.3333, 4);            // eighth notes at 148
+    expect(pulseBpm(76.5, six, 'quarter')).toBe(51);
+    expect(pulseBpm(74, six, undefined)).toBe(74); expect(pulseBpm(74, six, 'pulse')).toBe(74);
+    expect(pulseBpm(74, four, 'quarter')).toBe(74);                           // only compound meters have the choice
+    expect(shownBpm(pulseBpm(74, six, 'quarter'), six, 'quarter')).toBeCloseTo(74, 9);
+    expect(quarterBpm(clampBeat(pulseBpm(74, six, 'quarter')), six)).toBeCloseTo(74, 3);     // what MIDI clock sends
+  });
+  it('the clock keeps finer steps than the tempo field', () => {
+    expect(clampBeat(49.33333)).toBe(49.3333); expect(clampBeat(5)).toBe(20); expect(clampBeat(999)).toBe(300);
   });
 });

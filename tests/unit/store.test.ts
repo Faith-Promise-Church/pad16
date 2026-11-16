@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { openKV, memoryKV } from '../../src/store/db';
 import { loadState, STATE_KEY, audioKey } from '../../src/store/migrate';
-import { normalizeState, defaultState } from '../../src/store/model';
+import { normalizeState, defaultState, PADS } from '../../src/store/model';
+import { applySeeds, SEEDS } from '../../src/store/seeds';
+import { pulseBpm } from '../../src/engine/time';
 
 /** Write data the way the first version of the app did. */
 async function seedV1(f: IDBFactory) {
@@ -61,17 +63,44 @@ describe('saved data migration', () => {
   });
   it('starts clean with no old data and with no IndexedDB at all', async () => {
     const { state, migrated } = await loadState(await openKV(new IDBFactory()));
-    expect(migrated).toBe(false); expect(state.songs.length).toBe(1); expect(state.patterns.length).toBe(21);
+    expect(migrated).toBe(false); expect(state.songs.length).toBe(1); expect(state.patterns.length).toBe(defaultState().patterns.length); expect(state.songs[0].pads.length).toBe(PADS);
     expect(state.songs[0].pads[0]).toMatchObject({ name: 'Shaker', mode: 'loop' });      // a fresh install gets the default layout
     const mem = await loadState(memoryKV());
-    expect(mem.state.songs[0].pads.length).toBe(16);
+    expect(mem.state.songs[0].pads.length).toBe(PADS);
   });
   it('repairs partial or damaged saves', () => {
     expect(normalizeState(null).songs.length).toBe(1);
     const s = normalizeState({ songs: [{ name: 'X', pads: [{ name: 'only one' }], sub: { on: true } }], settings: { theme: 'light' } });
-    expect(s.songs[0].pads.length).toBe(16); expect(s.songs[0].pads[0].name).toBe('only one'); expect(s.songs[0].pads[5].src).toEqual({ t: 'builtin', i: 5 });
+    expect(s.songs[0].pads.length).toBe(PADS); expect(s.songs[0].pads[0].name).toBe('only one'); expect(s.songs[0].pads[5].src).toEqual({ t: 'builtin', i: 5 });
     expect(s.songs[0].sub.on).toBe(true); expect(s.songs[0].sub.params.wave).toBe('sine'); expect(s.settings.theme).toBe('light');
     expect(s.settings.midi.clockOut).toBe(true); expect(s.sets[0].songIds).toEqual([s.songs[0].id]);
     expect(defaultState().settings.midi.startStop).toBe(false);
+  });
+});
+
+describe('the ready-made set', () => {
+  it('is added once, beside what is saved, and never comes back after it is deleted', () => {
+    const state = defaultState();
+    state.songs[0].name = 'Mine'; state.songs[0].bpm = 101;
+    const set = applySeeds(state)!;
+    expect(set.name).toBe('Acoustic set');
+    expect(state.sets.length).toBe(2); expect(state.sets[0].songIds).toEqual([state.songs[0].id]);
+    expect(state.songs[0]).toMatchObject({ name: 'Mine', bpm: 101 });                    // saved songs are untouched
+    const songs = set.songIds.map(id => state.songs.find(s => s.id === id)!);
+    expect(songs.map(s => `${s.name} ${'C Db D Eb E F Gb G Ab A Bb B'.split(' ')[s.key]} ${s.bpm} ${s.ts.num}/${s.ts.den}`)).toEqual([
+      'Bless God C 72.5 4/4', 'Cornerstone C 72 4/4', 'No One Like the Lord E 72 4/4', 'Here Again C 68 4/4',
+      'Great Are You Lord Bb 74 6/8', 'I Surrender E 76.5 6/8', 'Tremble B 74 4/4', 'Send Me B 66 4/4']);
+    for (const s of songs) { expect(s.pads.length).toBe(PADS); expect(s.kit).toBe('rig'); expect(s.pageNames).toEqual(['Cajon', 'Kick']); }
+    // the two 6/8 songs count their tempo in quarter notes, and use the 6/8 patterns
+    expect(songs.filter(s => s.tempoCount === 'quarter').map(s => s.name)).toEqual(['Great Are You Lord', 'I Surrender']);
+    expect(pulseBpm(songs[4].bpm, songs[4].ts, songs[4].tempoCount)).toBeCloseTo(49.333, 3);
+    expect(pulseBpm(songs[5].bpm, songs[5].ts, songs[5].tempoCount)).toBeCloseTo(51, 6);
+    expect(songs[4].pads[0].patternId).toBe('rig68-shaker'); expect(songs[0].pads[0].mode).toBe('loop');
+    // again: nothing new. Deleted: stays deleted, also across a save and load
+    expect(applySeeds(state)).toBeNull();
+    state.sets = state.sets.filter(s => s.id !== set.id); state.songs = state.songs.filter(s => !set.songIds.includes(s.id));
+    const back = normalizeState(JSON.parse(JSON.stringify(state)));
+    expect(back.seeded).toEqual(SEEDS.map(s => s.id));
+    expect(applySeeds(back)).toBeNull(); expect(back.sets.length).toBe(1); expect(back.songs.length).toBe(1);
   });
 });

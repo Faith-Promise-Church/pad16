@@ -1,6 +1,6 @@
 // First run of the new app: carry the old pads over. Old keys are read and left exactly as they were.
 import { KV } from './db';
-import { AppState, defaultState, defaultPad, normalizeState, uid } from './model';
+import { AppState, defaultState, defaultPad, normalizeState, uid, PADS } from './model';
 import { PadMode } from '../engine/tags';
 
 export const STATE_KEY = 'v2:state';
@@ -14,7 +14,8 @@ export async function loadState(kv: KV): Promise<{ state: AppState; migrated: bo
   const song = state.songs[0];
   // pads carried over from the first version sit on its built-in drums, not on the new default layout
   const fresh = song.pads, freshKit = song.kit, freshBpm = song.bpm;
-  song.pads = Array.from({ length: 16 }, (_, i) => defaultPad(i)); song.kit = ''; song.bpm = 96;
+  const freshNames = song.pageNames;
+  song.pads = Array.from({ length: PADS }, (_, i) => defaultPad(i)); song.kit = ''; song.bpm = 96; song.pageNames = [];
   let migrated = false;
   for (let i = 0; i < 16; i++) {
     const s = await kv.get<any>('s' + i);
@@ -38,7 +39,7 @@ export async function loadState(kv: KV): Promise<{ state: AppState; migrated: bo
   }
   const kit = await kv.get<string>('kit');
   if (typeof kit === 'string' && kit && kit !== '__custom') { song.kit = kit; migrated = true; }
-  if (!migrated) { song.pads = fresh; song.kit = freshKit; song.bpm = freshBpm; }
+  if (!migrated) { song.pads = fresh; song.kit = freshKit; song.bpm = freshBpm; song.pageNames = freshNames; }
   await kv.put(STATE_KEY, state);
   return { state, migrated };
 }

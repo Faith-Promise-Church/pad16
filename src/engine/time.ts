@@ -17,6 +17,12 @@ export const beatsPerBar = (ts: TimeSig) => (isCompound(ts) ? ts.num / 3 : ts.nu
 /** Quarter notes per minute for a felt-beat tempo. MIDI clock runs at 24 pulses per quarter. */
 export const quarterBpm = (bpm: number, ts: TimeSig) => bpm * beatLenQ(ts);
 export const clampBpm = (bpm: number) => Math.round(Math.min(240, Math.max(40, bpm)) * 10) / 10;
+/** The clock's own limit for the felt beat. Finer than the tempo you type, because a 6/8 song typed as 74 (in quarter notes) has a pulse of 49.333. */
+export const clampBeat = (bpm: number) => Math.round(Math.min(300, Math.max(20, bpm)) * 1e4) / 1e4;
+/** How a compound-meter tempo is counted: by the dotted-quarter pulse, or in quarter notes the way worship charts print it (74 in 6/8 means eighths at 148). */
+export type TempoCount = 'pulse' | 'quarter';
+export const pulseBpm = (bpm: number, ts: TimeSig, count: TempoCount | undefined) => (count === 'quarter' && isCompound(ts) ? bpm / 1.5 : bpm);
+export const shownBpm = (pulse: number, ts: TimeSig, count: TempoCount | undefined) => (count === 'quarter' && isCompound(ts) ? pulse * 1.5 : pulse);
 
 export function subsPerBeat(ts: TimeSig, sub: Subdivision): number {
   if (sub === 'off') return 1;

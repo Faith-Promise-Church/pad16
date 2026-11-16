@@ -24,6 +24,10 @@ Branch: `live-rig`. Never push to `main`.
 - Preview is live at `/next/` (the github-pages environment now allows `live-rig`).
 - Justin's samples are in: Acoustic Set (real stomp, thick kick, clap, tambourines, cajon, snap, shaker loop), Cajon Slaps (11 hits to audition), Justin Click (click set), and two pad sets in all 12 major keys.
 - Click sound switch (Built-in or a click set), pad low cut, offline saving of pad files, patterns use real samples.
+- Fixed: a tempo change no longer kills a stretched loop in Safari. Stretch moved to a Worker; a finished stretch comes in on the next bar line.
+- Two pad pages per song with shared pads. Page 1 all cajon, page 2 kick.
+- 6/8: tempo counted in quarter notes (chart tempo), a full 6/8 layout, a shaker pattern cut from the loop.
+- Built-in set "Acoustic set": 8 songs with keys, tempos and meters.
 - Default layout: the 80 BPM shaker on pad 1 and 15 programmed patterns (tambourine, claps, four cajon loops, seven kick loops, stomp). Pattern steps now have 8 levels, and tracks can choke.
 
 ## Tests (all passing at the last commit)
@@ -36,7 +40,8 @@ Branch: `live-rig`. Never push to `main`.
 
 - The iOS app has never been compiled. Xcode is not installed on the Mac. `HostClock.swift`, `MidiEngine.swift`, `BleReconnector.swift` and `CueClick.swift` type-check against the macOS SDK; `AudioSessionController.swift` and `Pad16NativePlugin.swift` could not be checked.
 - Everything in `docs/HARDWARE_TEST.md`.
-- Signalsmith Stretch inside iOS Safari or WKWebView (verified in Chrome only).
+- Signalsmith Stretch on a real iPad. It now runs in a Worker and is tested in Playwright's WebKit (the engine Safari uses), which is where it failed before. How it sounds on the shaker at 66 and 68 BPM (15 to 18 percent slower) is for ears.
+- How the 6/8 shaker pattern and the 6/8 cajon loops sound. They were built by measurement.
 - The preview deploy to `/next/`: blocked by the `github-pages` environment rule until `live-rig` is allowed.
 
 ## State of the Mac

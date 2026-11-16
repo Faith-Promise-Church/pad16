@@ -44,6 +44,7 @@ A folder under `kits/` is a kit. The file name sets everything about a pad.
 | (none) | Tambourine short | `Tambourine Short.wav` | Justin: `TAMBO B.wav` |
 | (none) | Fast stomp A to D | `Fast Stomp A.wav` to `Fast Stomp D.wav` | Justin: `FAST STOMP A.wav` to `D.wav` |
 | (none) | Shaker 80 | `Shaker 80 [loop] [80bpm] [8bars].wav` | Justin: `80BPM SHAKER.wav` (eight bars at 80, leveled to -6 dB) |
+| (none) | Shaker strokes | `Shaker Hit A.wav`, `Shaker Hit B.wav`, `Shaker Mid A.wav`, `Shaker Mid B.wav`, `Shaker Soft A.wav`, `Shaker Soft B.wav` | Justin: single strokes cut from `80BPM SHAKER.wav` for the 6/8 shaker pattern |
 
 Files without a pad number are extras: they do not get a pad, but any pattern track can use them.
 
@@ -55,25 +56,47 @@ Stand-ins come from `scripts/make-acoustic-kit.mjs`, which fills empty slots onl
 
 ## The default layout
 
-A new song, and "Default layout" in the Kit menu, puts this on the pads. It is built from the files above, so replacing one of them changes the layout's sound too.
+A new song, and "Default layout" in the Kit menu, puts this on the pads. It is built from the files above, so replacing one of them changes the layout's sound too. It has two pages. Page 1 ("Cajon") is all cajon. Page 2 ("Kick") is the same except pads 9 to 14, which are kick loops; every other pad on page 2 is the same pad as on page 1.
 
-| Pad | Name | What it plays |
-| --- | --- | --- |
-| 1 | Shaker | The 80 BPM shaker loop, 8 bars, Stretch |
-| 2 | Tambo 2 and 4 | Tambourine hit on 2 and 4 |
-| 3 | Tambo on 4 | Tambourine hit on 4 |
-| 4 | Claps 2 and 4 | Claps on 2 and 4, rotating through the three takes |
-| 5 to 8 | Cajon Basic, Push, Rolling, Half Time | Two-bar cajon loops from the chopped hits (bass: hit 6, slap: hit 11, taps: hit 10) |
-| 9 | Kick on 1 | Kick on beat 1 |
-| 10 | Kick 1 and 3 | 1, 1-and, 3, 3-and, the off beats weaker |
-| 11 | Kick Syncopated | 1, a of 1, and of 2, e and and of 3, and of 4 |
-| 12 | Four on the Floor | Kick on every beat |
-| 13 | Worship Kick A | 1, and of 2, 3 |
-| 14 | Worship Kick B | 1, a of 2 into 3, and of 3 |
-| 15 | Kick Build | Eighth notes: a big downbeat, a drop, then a climb through the bar |
-| 16 | Stomp on 1 | One stomp on each downbeat, a different take every bar |
+| Pad | Page 1, Cajon | Page 2, Kick | What it plays |
+| --- | --- | --- | --- |
+| 1 | Shaker | same pad | The 80 BPM shaker loop, 8 bars, Stretch |
+| 2 | Tambo 2 and 4 | same pad | Tambourine hit on 2 and 4 |
+| 3 | Tambo on 4 | same pad | Tambourine hit on 4 |
+| 4 | Claps 2 and 4 | same pad | Claps on 2 and 4, rotating through the three takes |
+| 5 to 8 | Cajon Basic, Push, Rolling, Half Time | same pads | Two-bar cajon loops from the chopped hits (bass: hit 6, slap: hit 11, taps: hit 10) |
+| 9 | Cajon on 1 | Kick on 1 | Beat 1 |
+| 10 | Cajon 1 and 3 | Kick 1 and 3 | 1, 1-and, 3, 3-and, the off beats weaker |
+| 11 | Cajon Syncopated | Kick Syncopated | 1, a of 1, and of 2, e and and of 3, and of 4 |
+| 12 | Cajon Four | Four on the Floor | Every beat |
+| 13 | Cajon Worship A | Worship Kick A | 1, and of 2, 3 |
+| 14 | Cajon Worship B | Worship Kick B | 1, a of 2 into 3, and of 3 |
+| 15 | Kick Build | same pad | Eighth notes on the kick: a big downbeat, a drop, then a climb through the bar |
+| 16 | Stomp on 1 | same pad | One stomp on each downbeat, a different take every bar |
 
-Exclusive groups: pads 2 and 3 (A), pads 5 to 8 (B), pads 9 to 15 (C). Starting one pad in a group stops the others in it on the same bar line. The kick is the Thick Kick sample; kick and cajon tracks cut their own previous hit, so busy figures stay tight.
+Exclusive groups: pads 2 and 3 (A), pads 5 to 8 (B), pads 9 to 15 on both pages (C). Starting one pad in a group stops the others in it on the same bar line. The cajon loops on pads 9 to 14 use the Cajon Bass sample, the kick loops the Thick Kick; both cut their own previous hit, so busy figures stay tight.
+
+### In 6/8
+
+A song in 6/8 (or 9/8, 12/8) gets the same layout built from 6/8 patterns. Count the bar in six eighth notes.
+
+| Pad | Page 1, Cajon | Page 2, Kick | What it plays |
+| --- | --- | --- | --- |
+| 1 | Shaker | same pad | Single shaker strokes: strong on 1 and 4, lighter eighths between, a soft pickup into each pulse |
+| 2 | Tambo on 4 | same pad | Tambourine on 4, the backbeat |
+| 3 | Tambo Every Other Bar | same pad | Tambourine on 4 of every second bar |
+| 4 | Claps on 4 | same pad | Claps on 4, rotating through the three takes |
+| 5 to 8 | Cajon Basic, Push, Rolling, Half Time | same pads | Two-bar cajon loops: bass on 1, slap on 4. Half Time puts the slap on the downbeat of every second bar |
+| 9 | Cajon on 1 | Kick on 1 | 1 |
+| 10 | Cajon 1 and 4 | Kick 1 and 4 | 1 and 4, the 4 weaker |
+| 11 | Cajon 1 3 4 | Kick 1 3 4 | 1, 3 and 4 |
+| 12 | Cajon 1 4 6 | Kick 1 4 6 | 1, 4 and a pickup on 6 |
+| 13 | Cajon Worship A | Worship Kick A | Two bars: 1 and 6, then 1, 3 and 4 |
+| 14 | Cajon Worship B | Worship Kick B | Two bars: 1, 4 and 6, then 1, 2 and 4 |
+| 15 | Kick Build | same pad | Six eighth notes on the kick: big downbeat, drop, climb |
+| 16 | Stomp on 1 | same pad | One stomp on each downbeat, a different take every bar |
+
+The six shaker strokes (`Shaker Hit A` and `B`, `Shaker Mid A` and `B`, `Shaker Soft A` and `B`) were cut from Justin's `80BPM SHAKER.wav`, one from each stroke of its two-beat cell.
 
 ## Click sets
 

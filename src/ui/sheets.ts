@@ -2,7 +2,7 @@
 import type { App } from '../app';
 import type { UI } from './views';
 import { h, btn, toggle, fader, stepper, segmented, field, textInput, pickButton, pickSheet, openSheet, confirmSheet, pct, icon, clear } from './kit';
-import { NOTE_NAMES, QUANTS, QUANT_LABEL, Quant, Den, Subdivision, midiToName, ClickKind } from '../engine/time';
+import { NOTE_NAMES, QUANTS, QUANT_LABEL, Quant, Den, Subdivision, midiToName, ClickKind, TempoCount, isCompound, clampBpm, shownBpm } from '../engine/time';
 import { MIDI_ACTIONS, MidiAction, SubTarget, SubWave, SUB_PRESETS, OutputMode } from '../store/model';
 import { Native } from '../native/plugin';
 
@@ -21,12 +21,20 @@ export function openTempo(ui: UI): void {
     const countIn = segmented<0 | 1 | 2>({ label: 'Count-in', value: app.song.click.countIn, options: [{ value: 0, label: 'Off' }, { value: 1, label: '1 bar' }, { value: 2, label: '2 bars' }], onChange: v => app.patchSong({ click: { ...app.song.click, countIn: v } }) });
     const quant = pickButton<Quant>({ title: 'Launch quantize', value: () => app.song.quantize, onPick: v => app.patchSong({ quantize: v }), options: () => QUANTS.map(q => ({ value: q, label: QUANT_LABEL[q] })) });
     const note = h('p', { class: 'help' });
+    // 6/8, 9/8, 12/8: charts print the tempo in quarter notes (74 means eighth notes at 148), the pulse is the dotted quarter
+    const count = segmented<TempoCount>({ label: 'The tempo counts', value: 'pulse', options: [{ value: 'quarter', label: 'Quarter notes' }, { value: 'pulse', label: 'The dotted-quarter pulse' }],
+      onChange: v => app.patchSong({ bpm: clampBpm(shownBpm(app.pulse, app.song.ts, v)), tempoCount: v }) });
+    const countHelp = h('p', { class: 'help' }), countField = field('The tempo counts', count.el, countHelp);
     body.append(
       h('section', {}, field('Tempo', h('div', { class: 'row' }, nudge(-1, '-1'), nudge(-0.1, '-0.1'), h('div', { class: 'grow' }, input.el), nudge(0.1, '+0.1'), nudge(1, '+1'), btn({ label: 'Tap', cls: 'primary', onClick: () => app.tap() }))), note),
-      h('section', {}, h('h3', { text: 'Time signature' }), h('div', { class: 'two' }, field('Beats', num.el), field('Note value', den.el))),
+      h('section', {}, h('h3', { text: 'Time signature' }), h('div', { class: 'two' }, field('Beats', num.el), field('Note value', den.el)), countField),
       h('section', {}, h('h3', { text: 'Launch' }), h('div', { class: 'two' }, field('Count-in', countIn.el), field('Launch quantize for loops and patterns', quant.el))));
     return () => {
       input.set(String(app.song.bpm)); num.set(app.song.ts.num); den.set(app.song.ts.den); countIn.set(app.song.click.countIn); quant.update();
+      const compound = isCompound(app.song.ts), q = app.song.tempoCount === 'quarter';
+      countField.hidden = !compound; count.set(q ? 'quarter' : 'pulse');
+      const r1 = (n: number) => String(Math.round(n * 10) / 10);
+      if (compound) countHelp.textContent = `Eighth notes at ${r1(app.pulse * 3)}, pulse at ${r1(app.pulse)}. ` + (q ? 'This is how most charts print a 6/8 tempo.' : 'Choose quarter notes if this tempo came from a chart.');
       note.textContent = app.eng.transport.pending ? 'The new tempo starts at the next bar line.' : 'Range 40 to 240 BPM. While playing, a change lands on the next bar line.';
     };
   }).update();
@@ -78,7 +86,7 @@ export function songPanel(ui: UI, body: HTMLElement): () => void {
   const name = textInput({ value: '', max: 60, onInput: v => app.patchSong({ name: v }) });
   const notes = textInput({ value: '', max: 200, placeholder: 'Capo, cues, who starts', onInput: v => app.patchSong({ notes: v }) });
   const key = pickButton<number>({ title: 'Key', value: () => app.song.key, onPick: v => app.patchSong({ key: v }), options: () => NOTE_NAMES.map((n, i) => ({ value: i, label: n })) });
-  const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin', onPick: v => app.loadKit(v), options: () => [{ value: 'rig', label: 'Default layout', note: 'Shaker and 15 patterns' }, ...app.bank.index.kits.map(k => ({ value: k.name, label: k.name, note: `${k.pads.length} pads` })), { value: 'builtin', label: 'Built-in drums', note: 'Synthesized' }] });
+  const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin', onPick: v => app.loadKit(v), options: () => [{ value: 'rig', label: 'Default layout', note: 'Two pages: cajon and kick' }, ...app.bank.index.kits.map(k => ({ value: k.name, label: k.name, note: `${k.pads.length} pads` })), { value: 'builtin', label: 'Built-in drums', note: 'Synthesized' }] });
   const file = h('input', { attrs: { type: 'file', accept: '.pad16set,.zip,application/zip', hidden: '' } });
   file.addEventListener('change', async () => { const f = file.files?.[0]; file.value = ''; if (!f) return; try { await app.importSetFile(await f.arrayBuffer()); app.toast('Set imported.'); } catch { app.toast('That file is not a Pad16 set.'); } });
   const exp = btn({ label: 'Export set', icon: 'export', onClick: async () => {

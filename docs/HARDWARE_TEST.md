@@ -52,6 +52,9 @@ Rig: iPad, Nord Stage 4, WIDI Master, wired USB interface (ESI Gigaport HD+ or F
 ## 5. Loops, patterns, click
 
 - [ ] Shaker loop at its own tempo, then 10 BPM faster and slower, in Repitch and in Stretch. Stretch warning appears past 12 percent.
+- [ ] Shaker playing, change the tempo, let it pass its loop point (8 bars): it keeps sounding, and the stretched copy comes in on a bar line. Change back to 80: still sounding. (This is the bug that silenced the shaker in Safari.)
+- [ ] Page 2 while pads from page 1 play: nothing stops, the shared pads show as playing on both pages, the green dot on tab 1 shows a cajon loop still running.
+- [ ] Great Are You Lord (6/8 at 74): the click with eighth-note subdivisions sits at 148, the Nord shows 74, and the shaker and cajon patterns feel right.
 - [ ] Queue a pattern mid-bar: it blinks, then starts on the bar line. Swap between two pads in the same group: no gap, no overlap.
 - [ ] Each stop mode: now, quantized, end of loop, fade.
 - [ ] Import your own click samples (accent, beat, subdivision). Subdivisions in 4/4 and 6/8.

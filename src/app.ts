@@ -2,16 +2,17 @@
 import { Engine } from './engine/engine';
 import { SampleBank, KitInfo, ClickSetInfo, kitUrl } from './engine/bank';
 import { SOUND_BY_ID } from './engine/synthkit';
-import { stretchLoop, stretchAmount } from './engine/stretch';
+import { stretchLoop, warmStretch, stretchAmount } from './engine/stretch';
 import { detectTempo } from './engine/detect';
 import { parseTags } from './engine/tags';
-import { beatsPerBar, clampBpm, TimeSig, ClickKind } from './engine/time';
+import { beatsPerBar, clampBpm, pulseBpm, shownBpm, TimeSig, ClickKind } from './engine/time';
+import { applySeeds } from './store/seeds';
 import { TrackSrc } from './engine/patterns';
 import { KV, openKV } from './store/db';
 import { loadState, STATE_KEY } from './store/migrate';
 import { exportSet, importSet } from './store/exportimport';
 import {
-  AppState, Song, SetList, PadConfig, Routing, SampleRef, defaultPad, rigPads, RIG_KIT, defaultRouting, defaultSong, normalizeRouting, uid, MidiAction, SUB_PRESETS, BusId,
+  AppState, Song, SetList, PadConfig, Routing, SampleRef, defaultPad, rigPads, RIG_KIT, RIG_PAGES, PAGE, PAGES, PADS, padTarget, defaultRouting, defaultSong, normalizeRouting, uid, MidiAction, SUB_PRESETS, BusId,
 } from './store/model';
 import { MidiManager } from './midi/manager';
 import { ClockOut } from './midi/clockout';
@@ -28,9 +29,12 @@ export class App {
   webClick!: WebClick; nativeClick: NativeClick | null = null;
   route: RouteInfo | null = null;
   sinkId = '';
-  selected = 0;
+  /** The pad being edited (always a real pad), and the slot that was tapped to pick it (a linked slot points at another pad). */
+  selected = 0; selectedVia = 0;
+  /** The pad page in view. Pads on the other page keep playing. */
+  page = 0;
   unlocked = false; needsResume = false; migrated = false;
-  padMeta: PadMeta[] = Array.from({ length: 16 }, () => ({ missing: false, stretch: 'none' as const }));
+  padMeta: PadMeta[] = Array.from({ length: PADS }, () => ({ missing: false, stretch: 'none' as const }));
   toastMsg = ''; private toastTimer: any = null;
   private subs = new Set<() => void>();
   private saveTimer: any = null;
@@ -47,10 +51,13 @@ export class App {
     this.kv = await openKV();
     const loaded = await loadState(this.kv);
     this.state = loaded.state; this.migrated = loaded.migrated;
+    // a ready-made set that this iPad has not had yet: add it and open it. Saved songs and sets are left as they are.
+    const seeded = applySeeds(this.state);
+    if (seeded) { this.state.currentSet = seeded.id; this.state.currentSong = seeded.songIds[0] || this.state.currentSong; this.kv.put(STATE_KEY, this.state).catch(() => {}); setTimeout(() => this.toast(`Added the set "${seeded.name}".`, 6000), 800); }
     try { if ((navigator as any).audioSession) (navigator as any).audioSession.type = 'playback'; } catch { /* not Safari */ }
     const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
     this.ctx = new AC({ latencyHint: 'interactive' });
-    this.eng = new Engine(this.ctx, { bpm: this.song.bpm, ts: this.song.ts });
+    this.eng = new Engine(this.ctx, { bpm: this.pulse, ts: this.song.ts });
     this.webClick = this.eng.click as WebClick;
     this.bank = new SampleBank(this.eng, this.kv);
     this.eng.pads.patterns = id => this.state.patterns.find(p => p.id === id);
@@ -76,7 +83,7 @@ export class App {
       subInRange: n => this.song.sub.on && this.eng.sub.notes.inRange(n),
       noteOn: n => this.eng.sub.noteOn(n), noteOff: n => this.eng.sub.noteOff(n), pedal: d => this.eng.sub.pedal(d),
       control: (t, v) => this.eng.sub.control(t, v), bend: v => this.eng.sub.bend(v),
-      padTrigger: (i, v) => this.eng.pads.trigger(i, v), padRelease: i => this.eng.pads.release(i),
+      padTrigger: (i, v) => this.eng.pads.trigger(this.padAt(i), v), padRelease: i => this.eng.pads.release(this.padAt(i)),
       action: a => this.action(a), programChange: n => { const id = this.set.songIds[n]; if (id) this.selectSong(id); },
       linkLost: () => this.eng.sub.linkLost(), cc1: () => this.song.sub.cc1, cc11: () => this.song.sub.cc11,
     });
@@ -101,6 +108,7 @@ export class App {
     await this.applySong(true);
     this.midi.init().then(() => this.syncMidi());
     this.eng.scheduler.start();
+    warmStretch();
   }
 
   /* ---------- time ---------- */
@@ -147,7 +155,7 @@ export class App {
 
   async selectSong(id: string): Promise<void> {
     if (!this.state.songs.some(s => s.id === id) || id === this.state.currentSong) return;
-    this.state.currentSong = id;
+    this.state.currentSong = id; this.page = 0; this.selected = this.selectedVia = 0;
     this.changed();
     await this.applySong(false);
   }
@@ -166,7 +174,7 @@ export class App {
     const wasCurrent = id === this.state.currentSong;
     this.state.songs = this.state.songs.filter(s => s.id !== id);
     for (const set of this.state.sets) set.songIds = set.songIds.filter(x => x !== id);
-    if (wasCurrent) { this.state.currentSong = (this.setSongs[0] || this.state.songs[0]).id; this.applySong(false); }
+    if (wasCurrent) { this.state.currentSong = (this.setSongs[0] || this.state.songs[0]).id; this.page = 0; this.selected = this.selectedVia = 0; this.applySong(false); }
     if (!this.set.songIds.length) this.set.songIds.push(this.state.currentSong);
     this.changed();
   }
@@ -196,8 +204,9 @@ export class App {
   patchSong(patch: Partial<Song>, engineOnly = false): void {
     const s = this.song, e = this.eng, prevSet = s.tonic.set;
     Object.assign(s, patch);
-    if (patch.bpm !== undefined) { s.bpm = clampBpm(patch.bpm); e.transport.setBpm(s.bpm); this.restretch(); }
+    if (patch.bpm !== undefined) s.bpm = clampBpm(patch.bpm);
     if (patch.ts) e.transport.setTs(s.ts);
+    if (patch.bpm !== undefined || patch.ts || 'tempoCount' in patch) { e.transport.setBpm(this.pulse); this.restretch(); }
     if (patch.quantize) e.pads.globalQuant = s.quantize;
     if (patch.click || engineOnly) { e.click.setSettings(s.click); e.transport.countInBars = s.click.countIn; if (patch.click) this.loadClickSamples(); }
     if (patch.sub || engineOnly) e.sub.setSettings(s.sub);
@@ -206,7 +215,10 @@ export class App {
     if (patch.key !== undefined) e.tonic.setKey(s.key);
     if (!engineOnly) this.changed();
   }
-  tap(): void { const bpm = this.eng.transport.tap(performance.now()); if (bpm) { this.song.bpm = bpm; this.restretch(); this.changed(); } }
+  /** Tap the pulse. The song keeps the number in its own count (quarter notes for a 6/8 chart tempo). */
+  tap(): void { const s = this.song, bpm = this.eng.transport.tap(performance.now()); if (bpm) { s.bpm = clampBpm(shownBpm(bpm, s.ts, s.tempoCount)); this.eng.transport.setBpm(this.pulse); this.restretch(); this.changed(); } }
+  /** The song's tempo as the clock counts it: the felt beat, which in 6/8 is the dotted quarter. */
+  get pulse(): number { const s = this.song; return pulseBpm(s.bpm, s.ts, s.tempoCount); }
 
   private async loadClickSamples() {
     for (const k of ['accent', 'beat', 'sub'] as ClickKind[]) {
@@ -236,7 +248,7 @@ export class App {
 
   private async applySong(initial: boolean): Promise<void> {
     const s = this.song, e = this.eng, my = ++this.loadToken;
-    e.transport.setBpm(s.bpm); e.transport.setTs(s.ts);
+    e.transport.setTs(s.ts); e.transport.setBpm(this.pulse);
     e.pads.globalQuant = s.quantize;
     this.patchSong({}, true);
     this.loadClickSamples();
@@ -252,7 +264,7 @@ export class App {
     this.padMeta[i] = { missing: r.missing, stretch: 'none' };
     this.eng.pads.setPad(i, cfg, r.buffer);
     if (cfg.mode === 'pattern') this.warmPattern(cfg.patternId);
-    this.ensureStretch(i, this.song.bpm);
+    this.ensureStretch(i, this.eng.transport.targetBpm);
     this.emit();
   }
   /** Decode a pattern's track samples ahead of time so the first pass is complete. */
@@ -310,7 +322,7 @@ export class App {
       if (retime) p.stretched = null;
       this.eng.pads.setPad(i, cfg, p.buffer);
       if (patch.mode === 'pattern' || patch.patternId) this.warmPattern(cfg.patternId);
-      if (retime || patch.mode) this.ensureStretch(i, this.song.bpm);
+      if (retime || patch.mode) this.ensureStretch(i, this.eng.transport.targetBpm);
     }
     this.changed();
   }
@@ -324,7 +336,7 @@ export class App {
   async loadFiles(files: File[], start: number): Promise<void> {
     let i = start, loaded = 0; const failed: string[] = [];
     for (const f of files) {
-      if (i > 15) break;
+      if (i >= PADS) break;
       try {
         const { ref, buffer } = await this.bank.importAudio(f.name, await f.arrayBuffer());
         const t = parseTags(f.name), bpb = beatsPerBar(this.song.ts);
@@ -339,23 +351,48 @@ export class App {
         loaded++; i++;
       } catch { failed.push(f.name); }
     }
-    this.selected = Math.min(start + Math.max(loaded - 1, 0), 15);
+    this.selected = this.selectedVia = Math.min(start + Math.max(loaded - 1, 0), PADS - 1);
     if (failed.length) this.toast(`Could not read ${failed.join(', ')}. Try WAV, MP3 or M4A.`);
     else if (loaded > 1) this.toast(`Loaded ${loaded} samples onto pads ${start + 1} to ${start + loaded}.`);
     this.changed();
   }
   /** Back to this pad's place in the default layout. */
-  resetPad(i: number): void { this.patchPad(i, rigPads()[i]); }
+  resetPad(i: number): void { const d = rigPads(this.song.ts)[i]; this.song.pads[i] = d; this.loadPad(i, d); this.select(i); this.changed(); }
+
+  /* ---------- pages and linked pads ---------- */
+  setPage(n: number): void { const p = Math.min(PAGES - 1, Math.max(0, n | 0)); if (p !== this.page) { this.page = p; this.emit(); } }
+  /** The pad behind a slot (0 to 15) of the page in view. A linked slot gives the pad it points at. */
+  padAt(slot: number): number { return padTarget(this.song.pads, this.page * PAGE + slot); }
+  /** Pick a slot for editing. */
+  select(raw: number): void { this.selectedVia = raw; this.selected = padTarget(this.song.pads, raw); this.emit(); }
+  pageName(n: number): string { return (this.song.pageNames?.[n] || '').trim() || `Page ${n + 1}`; }
+  /** True when something is sounding on this page that the page in view does not show. */
+  pageBusy(n: number): boolean {
+    if (n === this.page) return false;
+    const pads = this.song.pads, shown = new Set<number>();
+    for (let slot = 0; slot < PAGE; slot++) shown.add(this.padAt(slot));
+    for (let i = n * PAGE; i < (n + 1) * PAGE; i++) if (pads[i].link === undefined && !shown.has(i) && this.eng.pads.view(i).state !== 'stopped') return true;
+    return false;
+  }
+  /** Give a linked slot a pad of its own: a copy of the pad it was showing. */
+  unlinkPad(raw: number): void {
+    const t = padTarget(this.song.pads, raw); if (t === raw) return;
+    const cfg: PadConfig = JSON.parse(JSON.stringify(this.song.pads[t]));
+    delete cfg.link;
+    this.song.pads[raw] = cfg;
+    this.loadPad(raw, cfg); this.select(raw); this.changed();
+  }
 
   /** Put a kit on the pads: 'rig' is the default layout, 'builtin' the first version's synthesized drums, anything else a kit from the repo. */
   async loadKit(name: string): Promise<void> {
     const s = this.song;
-    if (name === RIG_KIT) { s.kit = RIG_KIT; s.pads = rigPads(); }
-    else if (name === 'builtin') { s.kit = ''; s.pads = s.pads.map((_, i) => defaultPad(i)); }
+    if (name === RIG_KIT) { s.kit = RIG_KIT; s.pads = rigPads(s.ts); s.pageNames = [...RIG_PAGES]; }
+    else if (name === 'builtin') { s.kit = ''; s.pads = s.pads.map((_, i) => defaultPad(i)); s.pageNames = []; }
     else {
       const k = this.bank.index.kits.find(x => x.name === name); if (!k) return;
-      s.kit = k.name; s.pads = this.kitPads(k);
+      s.kit = k.name; s.pads = this.kitPads(k); s.pageNames = [];
     }
+    this.selectedVia = this.page * PAGE; this.selected = padTarget(s.pads, this.selectedVia);
     this.changed();
     const label = name === RIG_KIT ? 'the default layout' : name === 'builtin' ? 'the built-in drums' : name;
     this.toast(`Loading ${label}`, 0);
@@ -370,7 +407,7 @@ export class App {
   }
   private kitPads(k: KitInfo): PadConfig[] {
     const bpb = beatsPerBar(this.song.ts);
-    return Array.from({ length: 16 }, (_, i) => {
+    return Array.from({ length: PADS }, (_, i) => {
       const e = k.pads.find(p => p.pad === i + 1);
       if (!e) return defaultPad(i);
       const cfg: PadConfig = { ...defaultPad(i), name: e.name, src: { t: 'kit', kit: k.dir, file: e.file }, mode: e.mode || 'oneshot', group: (e.group as any) || '' };
@@ -384,21 +421,22 @@ export class App {
     const p = this.eng.pads.pads[i], cfg = p.cfg, meta = this.padMeta[i];
     if (cfg.mode !== 'loop' || cfg.sync !== 'stretch' || !p.buffer || !(cfg.sourceBpm > 0) || !(cfg.lengthBeats > 0)) { meta.stretch = 'none'; return; }
     if (p.stretched && Math.abs(p.stretched.bpm - bpm) < 0.05) { meta.stretch = 'ready'; return; }
-    if (Math.abs(bpm - cfg.sourceBpm) < 0.05) { p.stretched = { bpm, buffer: p.buffer }; meta.stretch = 'ready'; return; }
+    if (Math.abs(bpm - cfg.sourceBpm) < 0.05) { p.stretched = { bpm, buffer: p.buffer }; meta.stretch = 'ready'; this.eng.pads.swapIn(i); return; }
     if (meta.stretch === 'busy') return;
     meta.stretch = 'busy';
     const buffer = p.buffer, key = JSON.stringify(cfg.src);
     stretchLoop(buffer, cfg.sourceBpm, bpm, cfg.lengthBeats, key).then(out => {
       if (p.buffer !== buffer || p.cfg.sync !== 'stretch') return;
       p.stretched = { bpm, buffer: out }; meta.stretch = 'ready';
+      this.eng.pads.swapIn(i);
       // the tempo moved on while this rendered: go again
       if (Math.abs(this.eng.transport.targetBpm - bpm) > 0.05) { meta.stretch = 'none'; this.ensureStretch(i, this.eng.transport.targetBpm); }
       this.emit();
     }).catch(() => { if (p.buffer === buffer) meta.stretch = 'failed'; this.emit(); });
     this.emit();
   }
-  private restretch() { for (let i = 0; i < 16; i++) { if (this.padMeta[i].stretch !== 'busy') this.padMeta[i].stretch = 'none'; this.ensureStretch(i, this.eng.transport.targetBpm); } }
-  stretchWarning(i: number): boolean { const c = this.song.pads[i]; return c.mode === 'loop' && c.sync === 'stretch' && stretchAmount(c.sourceBpm, this.song.bpm) > 0.12; }
+  private restretch() { for (let i = 0; i < PADS; i++) { if (this.padMeta[i].stretch !== 'busy') this.padMeta[i].stretch = 'none'; this.ensureStretch(i, this.eng.transport.targetBpm); } }
+  stretchWarning(i: number): boolean { const c = this.song.pads[i]; return c.mode === 'loop' && c.sync === 'stretch' && stretchAmount(c.sourceBpm, this.eng.transport.targetBpm) > 0.12; }
 
   /* ---------- outputs ---------- */
   get deviceKey(): string { return this.route ? `${this.route.name}|${this.route.channels}` : 'web:' + (this.sinkId || 'default'); }
@@ -463,6 +501,7 @@ export class App {
     else if (a === 'panic') this.panic();
     else if (a === 'tonicToggle') this.patchSong({ tonic: { ...s.tonic, on: !s.tonic.on } });
     else if (a === 'subToggle') this.patchSong({ sub: { ...s.sub, on: !s.sub.on } });
+    else if (a === 'padPage') this.setPage((this.page + 1) % PAGES);
   }
   setSubPreset(name: string) { const p = SUB_PRESETS[name]; if (p) this.patchSong({ sub: { ...this.song.sub, preset: name, params: { ...p, octave: this.song.sub.params.octave } } }); }
   setTs(ts: TimeSig) { this.patchSong({ ts }); }

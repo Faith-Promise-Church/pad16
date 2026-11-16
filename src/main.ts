@@ -8,7 +8,8 @@ import './ui/tokens.css';
 import './ui/app.css';
 import { App } from './app';
 import { h, btn, openSheet, openSheets } from './ui/kit';
-import { UI, View, transportView, gridView, tonicCard, subCard, mixerView, PAD_KEYS } from './ui/views';
+import { UI, View, transportView, gridView, pagesView, tonicCard, subCard, mixerView, PAD_KEYS } from './ui/views';
+import { PAGE } from './store/model';
 import { editorView, openSequencer } from './ui/editor';
 import { openTempo, openClick, openSongs, openSynth, openTonic, openSettings, songPanel, synthPanel } from './ui/sheets';
 
@@ -26,15 +27,15 @@ async function boot() {
     openSynth: () => openSynth(ui), openTonic: () => openTonic(ui), openSequencer: id => openSequencer(ui, id),
     openMixer: () => { const m = mixerView(ui); sheetViews.add(m); openSheet('Mixer', body => { body.append(m.el); m.update(); return () => m.update(); }); },
     setEdit: on => { const s = app.state.settings; s.edit = on && !s.editLock; app.changed(); },
-    select: i => { app.selected = i; app.emit(); },
+    select: i => app.select(i),
   };
   const sheetViews = new Set<View>();
 
-  const transport = transportView(ui), grid = gridView(ui), editor = editorView(ui);
+  const transport = transportView(ui), grid = gridView(ui), pages = pagesView(ui), editor = editorView(ui);
   const strip = { tonic: tonicCard(ui), sub: subCard(ui) }, rail = { tonic: tonicCard(ui), sub: subCard(ui), mixer: mixerView(ui) };
   const phoneMixer = mixerView(ui), phoneTonic = tonicCard(ui);
   const railEl = h('aside', { class: 'rail', attrs: { 'aria-label': 'Tonic pad, sub synth and mixer' } }, rail.tonic.el, rail.sub.el, rail.mixer.el);
-  const stage = h('main', { class: 'stage' }, h('section', { class: 'grid-wrap' }, grid.el), railEl);
+  const stage = h('main', { class: 'stage' }, h('section', { class: 'grid-wrap' }, h('div', { class: 'grid-col' }, pages.el, grid.el)), railEl);
   const stripEl = h('section', { class: 'strip', attrs: { 'aria-label': 'Tonic pad and sub synth' } }, strip.tonic.el, strip.sub.el,
     btn({ icon: 'mixer', title: 'Mixer', cls: 'mix-open', onClick: () => ui.openMixer() }));
   const panelMix = h('section', { class: 'panel panel-mix' }, phoneMixer.el);
@@ -54,7 +55,7 @@ async function boot() {
   root.append(transport.el, stage, stripEl, editor.el, panelMix, panelSynth, panelSong, tabs);
   document.body.append(toast, banner, resume);
 
-  const views: View[] = [transport, grid, editor, strip.tonic, strip.sub, rail.tonic, rail.sub, rail.mixer, phoneMixer, phoneTonic];
+  const views: View[] = [transport, pages, grid, editor, strip.tonic, strip.sub, rail.tonic, rail.sub, rail.mixer, phoneMixer, phoneTonic];
   function applyLayout() {
     ui.layout = getLayout();
     root.dataset.layout = ui.layout;
@@ -98,21 +99,23 @@ async function boot() {
   window.addEventListener('dragover', e => e.preventDefault()); addEventListener('drop', e => e.preventDefault());
 
   /* keyboard: pad keys, space for the transport, and page-turner pedals (which arrive as arrow or page keys) */
-  const held = new Set<number>();
+  const held = new Set<number>(), heldPad = new Map<number, number>();
   const typing = () => { const a = document.activeElement as HTMLElement | null; return !!a && a.tagName === 'INPUT'; };
   window.addEventListener('keydown', e => {
     if (typing() || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape') { openSheets().at(-1)?.close(); return; }
     const i = PAD_KEYS.indexOf(e.code);
-    if (i >= 0) { e.preventDefault(); if (e.repeat || held.has(i)) return; held.add(i); app.unlock(); if (app.state.settings.edit) ui.select(i); app.eng.pads.trigger(i); return; }
+    if (i >= 0) { e.preventDefault(); if (e.repeat || held.has(i)) return; held.add(i); app.unlock(); const pad = app.padAt(i); heldPad.set(i, pad); if (app.state.settings.edit) ui.select(app.page * PAGE + i); app.eng.pads.trigger(pad); return; }
     if (e.repeat) return;
+    if (e.code === 'BracketLeft' || e.code === 'BracketRight') { e.preventDefault(); app.setPage(e.code === 'BracketLeft' ? 0 : 1); return; }
     if (e.code === 'Space' && !(document.activeElement instanceof HTMLButtonElement)) { e.preventDefault(); app.unlock(); app.eng.transport.toggle(); return; }
     if (!app.state.settings.pedalKeys || openSheets().length) return;
     if (['ArrowRight', 'ArrowDown', 'PageDown'].includes(e.key)) { e.preventDefault(); app.nextSong(); }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); app.prevSong(); }
   });
-  window.addEventListener('keyup', e => { const i = PAD_KEYS.indexOf(e.code); if (i >= 0) { held.delete(i); app.eng.pads.release(i); } });
-  window.addEventListener('blur', () => { held.forEach(i => app.eng.pads.release(i)); held.clear(); });
+  const letGo = (i: number) => { const pad = heldPad.get(i); if (pad !== undefined) app.eng.pads.release(pad); heldPad.delete(i); };
+  window.addEventListener('keyup', e => { const i = PAD_KEYS.indexOf(e.code); if (i >= 0) { held.delete(i); letGo(i); } });
+  window.addEventListener('blur', () => { held.forEach(letGo); held.clear(); });
 
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !(window as any).Capacitor?.isNativePlatform?.()) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });

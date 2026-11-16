@@ -2,7 +2,7 @@
 import type { App } from '../app';
 import { h, icon, btn, toggle, fader, pickButton, pct } from './kit';
 import { NOTE_NAMES, midiToName } from '../engine/time';
-import { BUS_IDS, BUS_LABEL, BusId, SUB_PRESETS } from '../store/model';
+import { BUS_IDS, BUS_LABEL, BusId, SUB_PRESETS, PAGE, PAGES } from '../store/model';
 
 export interface UI {
   app: App; layout: 'wide' | 'tall' | 'phone';
@@ -47,7 +47,7 @@ export function transportView(ui: UI): View {
     el,
     update() {
       const s = app.song, st = app.state.settings;
-      bpmNum.textContent = fmtBpm(t.targetBpm);
+      bpmNum.textContent = fmtBpm(s.bpm);
       ts.textContent = `${s.ts.num}/${s.ts.den}`;
       click.set(s.click.on);
       songName.textContent = s.name || 'Untitled';
@@ -77,6 +77,33 @@ export function transportView(ui: UI): View {
   };
 }
 
+/* ---------- pad pages ---------- */
+/** Two wide tabs above the grid. Pads on the page out of view keep playing; a dot on its tab says so. */
+export function pagesView(ui: UI): View {
+  const { app } = ui;
+  const tabs = Array.from({ length: PAGES }, (_, n) => {
+    const num = h('span', { class: 'page-num', text: String(n + 1) }), name = h('span', { class: 'page-name' }), dot = h('span', { class: 'page-dot', attrs: { 'aria-hidden': 'true' } });
+    const b = h('button', { class: 'page-tab', attrs: { type: 'button' } }, num, name, dot);
+    // pointerdown, like the pads: a page turn should land the moment the finger does
+    b.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); app.setPage(n); });
+    b.addEventListener('click', () => app.setPage(n));
+    return { b, name, busy: '' };
+  });
+  const el = h('div', { class: 'pages', attrs: { role: 'group', 'aria-label': 'Pad pages' } }, ...tabs.map(t => t.b));
+  return {
+    el,
+    update() {
+      tabs.forEach((t, n) => {
+        const nm = app.pageName(n);
+        t.name.textContent = nm;
+        t.b.setAttribute('aria-pressed', String(app.page === n));
+        t.b.setAttribute('aria-label', `Pad page ${n + 1}, ${nm}`);
+      });
+    },
+    frame() { tabs.forEach((t, n) => { const v = String(app.pageBusy(n)); if (v !== t.busy) { t.busy = v; t.b.dataset.busy = v; } }); },
+  };
+}
+
 /* ---------- pad grid ---------- */
 export function gridView(ui: UI): View {
   const { app } = ui, pads = app.eng.pads;
@@ -90,20 +117,23 @@ export function gridView(ui: UI): View {
       e.preventDefault();
       try { b.setPointerCapture(e.pointerId); } catch { /* fine */ }
       app.unlock();
-      if (app.state.settings.edit) ui.select(i);
-      pads.trigger(i);
+      if (app.state.settings.edit) ui.select(app.page * PAGE + i);
+      down = app.padAt(i);
+      pads.trigger(down);
     });
-    const up = () => pads.release(i);
+    // release the pad that was pressed, even if the page turned while it was held
+    let down = -1;
+    const up = () => { if (down >= 0) pads.release(down); down = -1; };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up);
     b.addEventListener('contextmenu', e => e.preventDefault());
-    b.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.repeat) { ui.select(i); pads.trigger(i); } });
-    b.addEventListener('keyup', e => { if (e.key === 'Enter') pads.release(i); });
+    b.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.repeat) { ui.select(app.page * PAGE + i); down = app.padAt(i); pads.trigger(down); } });
+    b.addEventListener('keyup', e => { if (e.key === 'Enter') up(); });
     b.addEventListener('dragover', e => { e.preventDefault(); b.classList.add('drop'); });
     b.addEventListener('dragleave', () => b.classList.remove('drop'));
     b.addEventListener('drop', e => {
       e.preventDefault(); b.classList.remove('drop');
       const files = [...(e.dataTransfer?.files || [])];
-      if (files.length && !app.state.settings.editLock) app.loadFiles(files, i);
+      if (files.length && !app.state.settings.editLock) app.loadFiles(files, app.page * PAGE + i);
     });
     el.append(b);
     return { b, name, type, state, group, prog, canvas, typeIcon: '', buf: null as AudioBuffer | null, w: 0, lastState: '' };
@@ -129,15 +159,15 @@ export function gridView(ui: UI): View {
     el,
     update() {
       const edit = app.state.settings.edit;
-      cells.forEach((c, i) => {
-        const cfg = app.song.pads[i], rt = pads.pads[i], nm = app.padName(i);
+      cells.forEach((c, slot) => {
+        const i = app.padAt(slot), cfg = app.song.pads[i], rt = pads.pads[i], nm = app.padName(i);
         c.name.textContent = nm;
         const ic = cfg.mode === 'pattern' ? 'pattern' : cfg.mode === 'loop' ? 'loop' : cfg.mode === 'hold' ? 'hold' : 'oneshot';
         if (ic !== c.typeIcon) { c.typeIcon = ic; c.type.replaceChildren(icon(ic)); }
         c.group.textContent = cfg.group;
         c.b.classList.toggle('empty', cfg.mode !== 'pattern' && !rt.buffer);
         c.b.classList.toggle('sel', edit && app.selected === i);
-        c.b.setAttribute('aria-label', `Pad ${i + 1}, key ${KEYS[i]}, ${nm}, ${cfg.mode === 'oneshot' ? 'one shot' : cfg.mode}`);
+        c.b.setAttribute('aria-label', `Pad ${slot + 1}, key ${KEYS[slot]}, ${nm}, ${cfg.mode === 'oneshot' ? 'one shot' : cfg.mode}`);
         const w = c.canvas.clientWidth;
         if (edit && (rt.buffer !== c.buf || w !== c.w)) { c.buf = rt.buffer; c.w = w; drawWave(c, cfg.mode === 'pattern' ? null : rt.buffer); }
         c.lastState = '';
@@ -145,8 +175,8 @@ export function gridView(ui: UI): View {
     },
     frame() {
       const e = app.eng, beat = e.clock.beatAt(e.now()), blink = still || beat - Math.floor(beat) < 0.5;
-      cells.forEach((c, i) => {
-        const v = pads.view(i), meta = app.padMeta[i];
+      cells.forEach((c, slot) => {
+        const i = app.padAt(slot), v = pads.view(i), meta = app.padMeta[i];
         const label = v.state === 'queued' ? 'Queued' : v.state === 'stopping' ? 'Stopping' : v.state === 'playing' ? 'Playing'
           : meta.missing ? 'Stand-in' : meta.stretch === 'busy' ? 'Rendering' : meta.stretch === 'failed' ? 'Repitch' : '';
         const key = v.state + (v.lit ? 'L' : '') + label;

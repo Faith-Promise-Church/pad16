@@ -1,7 +1,7 @@
 // The saved shape of everything: songs, sets, patterns, settings. Plain JSON.
-import { TimeSig, Quant, Subdivision } from '../engine/time';
+import { TimeSig, Quant, Subdivision, TempoCount, isCompound } from '../engine/time';
 import { PadMode } from '../engine/tags';
-import { Pattern, starterPatterns, upgradePattern, RIG_PAD_PATTERNS } from '../engine/patterns';
+import { Pattern, starterPatterns, upgradePattern, RIG_44, RIG_68 } from '../engine/patterns';
 
 export type SampleRef = { t: 'none' } | { t: 'builtin'; i: number } | { t: 'synth'; id: string } | { t: 'kit'; kit: string; file: string } | { t: 'audio'; id: string };
 export type SyncMode = 'stretch' | 'repitch' | 'off';
@@ -11,7 +11,11 @@ export interface PadConfig {
   name: string; src: SampleRef; volume: number; pitch: number; mode: PadMode;
   sync: SyncMode; sourceBpm: number; lengthBeats: number; conf: number;
   quantize: Quant | 'global'; stopMode: StopMode; fadeBeats: number; group: Group; patternId: string;
+  /** This slot shows another pad (by index) instead of holding one of its own, so one pad can sit on both pages. */
+  link?: number;
 }
+/** Pads on a page, pages in a song, and pads in a song. */
+export const PAGE = 16, PAGES = 2, PADS = PAGE * PAGES;
 export interface ClickSettings {
   on: boolean; sub: Subdivision; accent: number; beat: number; subLevel: number; countIn: 0 | 1 | 2;
   samples: { accent?: string; beat?: string; sub?: string };
@@ -29,6 +33,10 @@ export interface SubSettings {
 export interface TonicSettings { on: boolean; set: string; level: number; fadeIn: number; fadeOut: number; xfade: number; lp: number; hp: number }
 export interface Song {
   id: string; name: string; bpm: number; ts: TimeSig; key: number; kit: string; pads: PadConfig[]; quantize: Quant;
+  /** In 6/8, 9/8 and 12/8: what the tempo number counts. Unset means the dotted-quarter pulse. */
+  tempoCount?: TempoCount;
+  /** Names for the two pad pages. */
+  pageNames?: string[];
   click: ClickSettings; sub: SubSettings; tonic: TonicSettings; notes: string;
 }
 export interface SetList { id: string; name: string; songIds: string[] }
@@ -43,10 +51,10 @@ export interface Routing {
   buses: Record<BusId, BusState>;
 }
 export interface MidiBinding { kind: 'cc' | 'note' | 'pc'; ch: number; num: number }
-export type MidiAction = 'nextSong' | 'prevSong' | 'startStop' | 'tap' | 'clickToggle' | 'panic' | 'tonicToggle' | 'subToggle';
+export type MidiAction = 'nextSong' | 'prevSong' | 'startStop' | 'tap' | 'clickToggle' | 'panic' | 'tonicToggle' | 'subToggle' | 'padPage';
 export const MIDI_ACTIONS: Record<MidiAction, string> = {
   nextSong: 'Next song', prevSong: 'Previous song', startStop: 'Start and stop', tap: 'Tap tempo',
-  clickToggle: 'Click on and off', panic: 'Panic', tonicToggle: 'Tonic pad on and off', subToggle: 'Sub synth on and off',
+  clickToggle: 'Click on and off', panic: 'Panic', tonicToggle: 'Tonic pad on and off', subToggle: 'Sub synth on and off', padPage: 'Switch pad page',
 };
 export interface MidiSettings {
   disabled: Record<string, boolean>; lastBle: string; clockOut: boolean; startStop: boolean;
@@ -62,6 +70,8 @@ export interface Settings {
 }
 export interface AppState {
   schema: 2; songs: Song[]; sets: SetList[]; currentSet: string; currentSong: string; patterns: Pattern[]; settings: Settings;
+  /** Ready-made sets that have been added once already (see seeds.ts). Deleting one keeps it deleted. */
+  seeded?: string[];
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -74,17 +84,47 @@ export const SUB_PRESETS: Record<string, SubParams> = {
   'Organ Pedal': { wave: 'square', subOsc: 0.7, drive: 0.15, poles: 24, cutoff: 260, resonance: 0.6, envAmount: 0, attack: 0.02, decay: 0.1, sustain: 1, release: 0.12, glide: 0, octave: 0 },
 };
 
+/** A fresh pad. Page 1 starts on the first version's built-in drums; page 2 starts empty. */
 export const defaultPad = (i: number): PadConfig => ({
-  name: '', src: { t: 'builtin', i }, volume: 0.9, pitch: 0, mode: 'oneshot', sync: 'repitch', sourceBpm: 0, lengthBeats: 0, conf: 0,
+  name: '', src: i < PAGE ? { t: 'builtin', i } : { t: 'none' }, volume: 0.9, pitch: 0, mode: 'oneshot', sync: 'repitch', sourceBpm: 0, lengthBeats: 0, conf: 0,
   quantize: 'global', stopMode: 'quantized', fadeBeats: 4, group: '', patternId: '',
 });
-/** The default layout: the 80 BPM shaker on pad 1, then tambourine, clap, cajon, kick and stomp patterns on pads 2 to 16. */
+/** The default layout, two pages. Page 1 is all cajon: shaker, tambourine, claps, four cajon loops, six cajon bass loops,
+ *  the kick build and the stomp. Page 2 swaps the six cajon bass loops for kick loops; every other slot is the same pad as on page 1.
+ *  In 6/8 (and 9/8, 12/8) the same layout is built from the 6/8 patterns, with the shaker as a pattern of single strokes. */
 export const RIG_KIT = 'rig';
-export function rigPads(): PadConfig[] {
-  const group = (i: number): Group => (i === 1 || i === 2 ? 'A' : i >= 4 && i <= 7 ? 'B' : i >= 8 && i <= 14 ? 'C' : '');
-  return Array.from({ length: 16 }, (_, i): PadConfig => i === 0
-    ? { ...defaultPad(0), name: 'Shaker', src: { t: 'kit', kit: 'Acoustic Set', file: 'Shaker 80 [loop] [80bpm] [8bars].wav' }, mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32, conf: 1 }
-    : { ...defaultPad(i), src: { t: 'none' }, mode: 'pattern', patternId: RIG_PAD_PATTERNS[i - 1], group: group(i) });
+export const RIG_PAGES = ['Cajon', 'Kick'];
+export function rigPads(ts: TimeSig = { num: 4, den: 4 }): PadConfig[] {
+  const L = isCompound(ts) ? RIG_68 : RIG_44, six = L === RIG_68;
+  const group = (slot: number): Group => (slot === 1 || slot === 2 ? 'A' : slot >= 4 && slot <= 7 ? 'B' : slot >= 8 && slot <= 14 ? 'C' : '');
+  // 6/8 pattern names carry "6/8" so they can be told apart in the pattern list; on the pad that is noise
+  const pat = (i: number, id: string): PadConfig => ({ ...defaultPad(i), src: { t: 'none' }, mode: 'pattern', patternId: id, group: group(i % PAGE), name: six ? patternLabel(id) : '' });
+  const page1 = [L.shaker, ...L.shared, ...L.cajon, L.build, L.stomp].map((id, i): PadConfig => id ? (i === 0 ? { ...pat(0, id), name: 'Shaker' } : pat(i, id))
+    : { ...defaultPad(0), name: 'Shaker', src: { t: 'kit', kit: 'Acoustic Set', file: 'Shaker 80 [loop] [80bpm] [8bars].wav' }, mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32, conf: 1 });
+  const page2 = Array.from({ length: PAGE }, (_, slot): PadConfig => slot >= 8 && slot <= 13 ? pat(PAGE + slot, L.kick[slot - 8]) : { ...defaultPad(PAGE + slot), link: slot });
+  return [...page1, ...page2];
+}
+const LABELS = new Map<string, string>();
+function patternLabel(id: string): string {
+  if (!LABELS.size) for (const p of starterPatterns()) LABELS.set(p.id, p.name.replace(/^6\/8 /, ''));
+  return LABELS.get(id) || '';
+}
+/** The default layout as it was before it had two pages: 16 pads, kick loops on pads 9 to 14. */
+function firstRigPads(): PadConfig[] {
+  const one = rigPads();
+  return one.slice(0, PAGE).map((p, i) => (i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8] } : p));
+}
+const canon = (o: any) => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
+/** True for a saved song still on that first default layout with nothing changed, which can move to the two-page layout safely. */
+export function isUntouchedFirstRig(s: any): boolean {
+  if (!s || s.kit !== RIG_KIT || !Array.isArray(s.pads) || s.pads.length !== PAGE) return false;
+  const first = firstRigPads();
+  return s.pads.every((p: any, i: number) => canon(p) === canon(first[i]));
+}
+/** Where a slot's pad really lives: itself, or the pad it links to. */
+export function padTarget(pads: PadConfig[], i: number): number {
+  const l = pads[i]?.link;
+  return typeof l === 'number' && l >= 0 && l < pads.length && l !== i && pads[l].link === undefined ? l : i;
 }
 export const defaultClick = (): ClickSettings => ({ on: false, sub: 'off', accent: 1, beat: 0.8, subLevel: 0.5, countIn: 0, samples: {} });
 export const defaultSub = (): SubSettings => ({
@@ -99,7 +139,7 @@ export const defaultRouting = (): Routing => ({
   },
 });
 export const defaultSong = (name = 'New song'): Song => ({
-  id: uid(), name, bpm: 80, ts: { num: 4, den: 4 }, key: 0, kit: RIG_KIT, pads: rigPads(),
+  id: uid(), name, bpm: 80, ts: { num: 4, den: 4 }, key: 0, kit: RIG_KIT, pads: rigPads(), pageNames: [...RIG_PAGES],
   quantize: 'bar', click: defaultClick(), sub: defaultSub(), tonic: defaultTonic(), notes: '',
 });
 export const defaultSettings = (): Settings => ({
@@ -129,12 +169,16 @@ export function normalizeState(raw: any): AppState {
   for (const sp of starters) if (!patterns.some(p => p.id === sp.id)) patterns.push(sp);
   const currentSet = sets.some(s => s.id === raw.currentSet) ? raw.currentSet : sets[0].id;
   const currentSong = songs.some(s => s.id === raw.currentSong) ? raw.currentSong : songs[0].id;
-  return { schema: 2, songs, sets, currentSet, currentSong, patterns, settings };
+  const seeded = Array.isArray(raw.seeded) ? raw.seeded.map(String) : undefined;
+  return { schema: 2, songs, sets, currentSet, currentSong, patterns, settings, ...(seeded ? { seeded } : {}) };
 }
 export function normalizeSong(s: any, ds = defaultSong()): Song {
-  const pads = Array.from({ length: 16 }, (_, i) => ({ ...defaultPad(i), ...((s.pads || [])[i] || {}) }));
+  const ts: TimeSig = { num: s.ts?.num || 4, den: s.ts?.den || 4 };
+  // a song still on the first default layout, unchanged, moves to the two-page one: cajon on page 1, its kick layout on page 2
+  const moved = isUntouchedFirstRig(s);
+  const pads = moved ? rigPads(ts) : Array.from({ length: PADS }, (_, i) => ({ ...defaultPad(i), ...((s.pads || [])[i] || {}) }));
   return {
-    ...ds, ...s, id: s.id || uid(), pads,
+    ...ds, ...s, id: s.id || uid(), pads, pageNames: moved ? [...RIG_PAGES] : Array.isArray(s.pageNames) ? s.pageNames.map(String) : [],
     ts: { num: s.ts?.num || 4, den: s.ts?.den || 4 },
     click: { ...ds.click, ...(s.click || {}), samples: { ...(s.click?.samples || {}) } },
     sub: { ...ds.sub, ...(s.sub || {}), params: { ...ds.sub.params, ...(s.sub?.params || {}) } },

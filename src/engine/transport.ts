@@ -1,6 +1,6 @@
 // Transport: start, stop, count-in, tempo and meter changes, tap tempo.
 import type { Engine } from './engine';
-import { TimeSig, beatsPerBar, clampBpm } from './time';
+import { TimeSig, beatsPerBar, clampBpm, clampBeat } from './time';
 
 export class Transport {
   running = false;
@@ -35,7 +35,7 @@ export class Transport {
   toggle(): void { this.running ? this.stop() : this.start(); }
 
   setBpm(bpm: number): void {
-    this.targetBpm = clampBpm(bpm);
+    this.targetBpm = clampBeat(bpm);
     const e = this.eng;
     if (this.running) e.clock.setAtNextBar(e.scheduler.horizon, this.targetBpm, this.targetTs);
     else e.clock.setNow(e.now(), this.targetBpm, this.targetTs);

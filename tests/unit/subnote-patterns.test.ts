@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SubNotes } from '../../src/engine/subnote';
-import { renderPattern, starterPatterns, rigPatterns, RIG_PAD_PATTERNS, upgradePattern, emptyPattern, resizePattern, patternSteps, patternBeats } from '../../src/engine/patterns';
-import { rigPads, normalizeState, defaultState } from '../../src/store/model';
+import { renderPattern, starterPatterns, rigPatterns, cajonLowPatterns, rig68Patterns, RIG_44, RIG_68, upgradePattern, emptyPattern, resizePattern, patternSteps, patternBeats } from '../../src/engine/patterns';
+import { rigPads, padTarget, normalizeState, normalizeSong, defaultState, PADS, PAGE } from '../../src/store/model';
 
 describe('sub synth note priority', () => {
   it('plays the lowest held key and falls back when it is released', () => {
@@ -121,14 +121,79 @@ describe('default pad layout', () => {
   const by = Object.fromEntries(rigPatterns().map(p => [p.id, p]));
   const hits = (id: string) => renderPattern(by[id]).map(e => [e.beat, e.vel]);
   const beats = (id: string) => renderPattern(by[id]).map(e => e.beat);
-  it('puts the 80 BPM shaker on pad 1, stretched, and a pattern on every other pad', () => {
+  const RIG_PAD_PATTERNS = [...RIG_44.shared, ...RIG_44.kick, RIG_44.build, RIG_44.stomp];
+  it('page 1 is all cajon, page 2 swaps in the kick loops and shares every other pad', () => {
     const pads = rigPads();
+    expect(pads.length).toBe(PADS);
     expect(pads[0]).toMatchObject({ name: 'Shaker', mode: 'loop', sync: 'stretch', sourceBpm: 80, lengthBeats: 32 });
-    expect(pads.slice(1).every(p => p.mode === 'pattern')).toBe(true);
-    expect(pads.slice(1).map(p => p.patternId)).toEqual(RIG_PAD_PATTERNS);
-    for (const id of RIG_PAD_PATTERNS) expect(by[id], id).toBeTruthy();
-    expect(pads.map(p => p.group).join('')).toBe('AA' + 'BBBB' + 'CCCCCCC');       // tambos, cajon loops, kick loops
-    expect(defaultState().songs[0]).toMatchObject({ bpm: 80, kit: 'rig' });
+    expect(pads.slice(1, PAGE).every(p => p.mode === 'pattern')).toBe(true);
+    expect(pads.slice(1, PAGE).map(p => p.patternId)).toEqual([...RIG_44.shared, ...RIG_44.cajon, RIG_44.build, RIG_44.stomp]);
+    expect(pads.slice(0, PAGE).map(p => p.group).join('')).toBe('AA' + 'BBBB' + 'CCCCCCC');     // tambos, cajon loops, low loops and the build
+    // page 2: slots 9 to 14 are kick loops of their own; the rest point at page 1, the build (slot 15) included
+    expect(pads.slice(PAGE).map((p, slot) => p.link ?? p.patternId)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, ...RIG_44.kick, 14, 15]);
+    expect(Array.from({ length: PAGE }, (_, slot) => padTarget(pads, PAGE + slot))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 24, 25, 26, 27, 28, 29, 14, 15]);
+    expect(pads.slice(24, 30).every(p => p.group === 'C')).toBe(true);                           // one group across both pages
+    expect(pads[14].patternId).toBe('rig-kick-build');
+    const all = Object.fromEntries(starterPatterns().map(p => [p.id, p]));
+    for (const p of pads) if (p.mode === 'pattern') expect(all[p.patternId], p.patternId).toBeTruthy();
+    expect(defaultState().songs[0]).toMatchObject({ bpm: 80, kit: 'rig', pageNames: ['Cajon', 'Kick'] });
+  });
+  it('the cajon bass loops play the same rhythms as the kick loops', () => {
+    const low = Object.fromEntries(cajonLowPatterns().map(p => [p.id, p]));
+    RIG_44.cajon.forEach((id, n) => {
+      expect(renderPattern(low[id])).toEqual(renderPattern(by[RIG_44.kick[n]]));
+      expect(low[id].tracks[0]).toMatchObject({ choke: true, src: { t: 'synth', id: 'cajon-bass' } });
+    });
+  });
+  it('a link only resolves to a real pad, and an old 16-pad song gains an empty second page', () => {
+    const pads = rigPads();
+    expect(padTarget(pads, 3)).toBe(3);
+    pads[20] = { ...pads[20], link: 21 };            // a link to a link is not followed
+    expect(padTarget(pads, 20)).toBe(20);
+    pads[20] = { ...pads[20], link: 99 }; expect(padTarget(pads, 20)).toBe(20);
+    const old = normalizeSong({ id: 'x', name: 'Old', pads: rigPads().slice(0, PAGE) });
+    expect(old.pads.length).toBe(PADS);
+    expect(old.pads[2].patternId).toBe('rig-tambo-4');
+    expect(old.pads.slice(PAGE).every(p => p.src.t === 'none' && p.link === undefined && p.mode === 'oneshot')).toBe(true);
+  });
+  it('a saved song still on the first default layout moves to two pages; one that was changed is left alone', () => {
+    const first = rigPads().slice(0, PAGE).map((p, i) => (i >= 8 && i <= 13 ? { ...p, patternId: RIG_44.kick[i - 8] } : p));
+    const saved = JSON.parse(JSON.stringify({ id: 'a', name: 'My pads', kit: 'rig', bpm: 80, pads: first }));
+    const up = normalizeSong(saved);
+    expect(up.pads).toEqual(rigPads()); expect(up.pageNames).toEqual(['Cajon', 'Kick']); expect(up.name).toBe('My pads');
+    expect(up.pads[8].patternId).toBe('rig-cbass-1'); expect(up.pads[24].patternId).toBe('rig-kick-1');
+    const changed = JSON.parse(JSON.stringify(saved)); changed.pads[9].volume = 0.7;
+    const kept = normalizeSong(changed);
+    expect(kept.pads[8].patternId).toBe('rig-kick-1'); expect(kept.pads[9].volume).toBe(0.7);
+    expect(kept.pads.slice(PAGE).every(p => p.src.t === 'none' && p.link === undefined)).toBe(true); expect(kept.pageNames).toEqual([]);
+    // loading it a second time changes nothing more
+    expect(normalizeSong(JSON.parse(JSON.stringify(up))).pads).toEqual(rigPads());
+  });
+  it('6/8 gets the same layout from 6/8 patterns, with the shaker as a pattern of single strokes', () => {
+    const pads = rigPads({ num: 6, den: 8 }), p68 = Object.fromEntries(rig68Patterns().map(p => [p.id, p]));
+    expect(pads[0]).toMatchObject({ name: 'Shaker', mode: 'pattern', patternId: 'rig68-shaker' });
+    expect(pads.slice(1, PAGE).map(p => p.patternId)).toEqual([...RIG_68.shared, ...RIG_68.cajon, RIG_68.build, RIG_68.stomp]);
+    expect(pads.slice(24, 30).map(p => p.patternId)).toEqual(RIG_68.kick);
+    expect(pads.slice(0, PAGE).map(p => p.name)).toEqual(['Shaker', 'Tambo on 4', 'Tambo Every Other Bar', 'Claps on 4', 'Cajon Basic', 'Cajon Push', 'Cajon Rolling', 'Cajon Half Time',
+      'Cajon on 1', 'Cajon 1 and 4', 'Cajon 1 3 4', 'Cajon 1 4 6', 'Cajon Worship A', 'Cajon Worship B', 'Kick Build', 'Stomp on 1']);
+    for (const p of Object.values(p68)) { expect(p.ts).toEqual({ num: 6, den: 8 }); expect(p.bpb).toBe(2); expect(p.spb).toBe(6); expect(renderPattern(p).length).toBeGreaterThan(0); }
+    // beats are dotted quarters: eighth notes fall every third of a beat
+    const at = (id: string) => renderPattern(p68[id]).map(e => [Math.round(e.beat * 1000) / 1000, e.vel]);
+    expect(at('rig68-shaker').map(x => x[0])).toEqual([0, 0.333, 0.667, 0.833, 1, 1.333, 1.667, 1.833]);       // strong on 1 and 4, a pickup into each pulse
+    expect(renderPattern(p68['rig68-shaker']).filter(e => e.vel === 1).map(e => e.beat)).toEqual([0, 1]);
+    expect(at('rig68-tambo-4')).toEqual([[1, 1]]); expect(at('rig68-tambo-2bar')).toEqual([[3, 1]]);
+    expect(renderPattern(p68['rig68-clap-4']).map(e => [e.beat, e.track])).toEqual([[1, 0], [3, 1], [5, 2], [7, 0]]);
+    expect(at('rig68-kick-1')).toEqual([[0, 1]]); expect(at('rig68-kick-1-4')).toEqual([[0, 1], [1, 0.75]]);
+    expect(at('rig68-kick-1-3-4').map(x => x[0])).toEqual([0, 0.667, 1]); expect(at('rig68-kick-1-4-6').map(x => x[0])).toEqual([0, 1, 1.667]);
+    RIG_68.cajon.forEach((id, n) => expect(renderPattern(p68[id])).toEqual(renderPattern(p68[RIG_68.kick[n]])));
+    const build = at('rig68-kick-build').map(x => x[1]);                                                       // six eighths: big, drop, climb
+    expect(build).toEqual([1, 0.25, 0.375, 0.5, 0.625, 0.875]);
+    for (const n of [1, 2, 3, 4]) {
+      const ev = renderPattern(p68['rig68-cajon-' + n]);
+      expect(ev.some(e => e.track === 0 && e.beat === 0 && e.vel === 1)).toBe(true);
+      expect(ev.filter(e => e.track === 1 && e.vel === 1).length).toBeGreaterThanOrEqual(1);
+      expect(ev.filter(e => e.track === 2).every(e => e.vel <= 0.5)).toBe(true);
+    }
   });
   it('tambourine on 2 and 4, on 4 alone, and claps on 2 and 4 with rotating takes', () => {
     expect(beats('rig-tambo-2-4')).toEqual([1, 3]); expect(beats('rig-tambo-4')).toEqual([3]);

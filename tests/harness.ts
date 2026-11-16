@@ -172,6 +172,25 @@ const H = {
     const spread = Math.max(...errs) - Math.min(...errs);
     return { first: errs[0], last: errs[bars - 1], driftMs: errs[bars - 1] - errs[0], spreadMs: spread, worstMs: Math.max(...errs.map(Math.abs)), stretchedLen, expectLen };
   },
+  /** A loop playing repitched gets its stretched copy part way through: it must come in on the next bar line, on the grid, with no gap. */
+  async swap() {
+    const bpm = 110, sourceBpm = 100, beatSec = 60 / bpm, { ctx, eng } = offline(16 * beatSec + 0.5, bpm);
+    eng.pads.setPad(0, loopPad({ sync: 'stretch', sourceBpm, lengthBeats: 16 }), tickLoop(eng, sourceBpm, 16));
+    eng.pads.trigger(0);
+    const t0 = eng.clock.timeAt(0);
+    eng.scheduler.advanceTo(t0 + 5.3 * beatSec); eng.virtualNow = t0 + 5.3 * beatSec;      // into bar 2, still the repitched copy
+    const before = eng.pads.pads[0].run!.live.size;
+    // stands in for the render: the same ticks at the new tempo, twice as loud so the two copies can be told apart
+    const st = tickLoop(eng, bpm, 16), d = st.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] *= 1.8;
+    eng.pads.pads[0].stretched = { bpm, buffer: st };
+    eng.pads.swapIn(0);
+    const during = eng.pads.pads[0].run!.live.size;
+    eng.scheduler.advanceTo(t0 + 16 * beatSec - 0.01);
+    const x = (await ctx.startRendering()).getChannelData(0), found = onsets(x, 0.02, 0.01);
+    const peak = (t: number) => { let m = 0; for (let i = Math.round(t * SR); i < Math.round((t + 0.004) * SR); i++) m = Math.max(m, Math.abs(x[i])); return m; };
+    const worst = Math.max(...Array.from({ length: 16 }, (_, b) => Math.abs((found[b] ?? 99) - (t0 + b * beatSec)))) * 1000;
+    return { count: found.length, worstMs: worst, before, during, bar2: peak(t0 + 5 * beatSec), bar3: peak(t0 + 8 * beatSec), bar3beat2: peak(t0 + 9 * beatSec) };
+  },
   /** The limiter keeps the program output under the -1 dB ceiling however hard it is driven. */
   async limiter() {
     const { ctx, eng } = offline(1, 120);

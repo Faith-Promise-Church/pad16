@@ -6,7 +6,7 @@ import { QUANTS, QUANT_LABEL, Quant, beatsPerBar } from '../engine/time';
 import { confidenceLabel } from '../engine/detect';
 import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc, LEVELS, LEVEL_NORMAL, stepVel } from '../engine/patterns';
 import { SOUNDS } from '../engine/synthkit';
-import { Group, StopMode, SyncMode, uid } from '../store/model';
+import { Group, StopMode, SyncMode, uid, PAGE } from '../store/model';
 import { PadMode } from '../engine/tags';
 
 export function editorView(ui: UI): View {
@@ -20,6 +20,8 @@ export function editorView(ui: UI): View {
   const load = btn({ label: 'Load sample', cls: 'primary grow', onClick: () => file.click() });
   const reset = btn({ label: 'Reset pad', cls: 'ghost grow', onClick: () => app.resetPad(app.selected) });
   const info = h('p', { class: 'help' });
+  // a slot that shows a pad from the other page
+  const sharedText = h('span', { class: 'grow' }), shared = h('div', { class: 'note shared', attrs: { hidden: '' } }, sharedText, btn({ label: 'Make separate', cls: 'ghost', onClick: () => app.unlinkPad(app.selectedVia) }));
   const wave = h('canvas', { class: 'editor-wave' });
   const vol = fader({ value: 0.9, max: 1.5, label: 'Volume', format: pct, reset: 0.9, onInput: v => patch({ volume: v }) });
   const pitch = stepper({ value: 0, min: -24, max: 24, label: 'pitch', format: v => (v > 0 ? '+' : '') + v + ' st', onChange: v => patch({ pitch: v }) });
@@ -62,7 +64,7 @@ export function editorView(ui: UI): View {
   const sampleSec = h('section', {}, h('div', { class: 'row' }, load, reset), info, wave);
   const levelSec = h('section', {}, vol.el, field('Pitch', pitch.el));
   const el = h('section', { class: 'editor', attrs: { 'aria-label': 'Pad settings' } },
-    h('div', { class: 'editor-head' }, title, keyHint), field('Name', name.el), field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, file);
+    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, file);
   let drawn: AudioBuffer | null = null, drawnW = 0;
   function drawWave(buffer: AudioBuffer | null) {
     const r = wave.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -84,8 +86,11 @@ export function editorView(ui: UI): View {
       if (!app.state.settings.edit) return;
       const i = app.selected, p = pad(), rt = app.eng.pads.pads[i], meta = app.padMeta[i], b = rt.buffer;
       const isLoop = p.mode === 'loop', isPat = p.mode === 'pattern', synced = app.eng.pads.synced(rt);
-      title.textContent = `Pad ${i + 1}`;
-      keyHint.textContent = 'Key ' + ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V'][i];
+      const via = app.selectedVia, where = (n: number) => `${app.pageName(Math.floor(n / PAGE))}, pad ${(n % PAGE) + 1}`;
+      title.textContent = where(i);
+      keyHint.textContent = 'Key ' + ['1', '2', '3', '4', 'Q', 'W', 'E', 'R', 'A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V'][via % PAGE];
+      shared.hidden = via === i;
+      if (via !== i) sharedText.textContent = `This is the same pad as ${where(i)}. A change here changes it on both pages.`;
       name.set(p.name); name.el.placeholder = app.padName(i);
       mode.set(p.mode); vol.set(p.volume); pitch.set(p.pitch);
       reset.disabled = p.src.t === 'builtin' && p.mode === 'oneshot' && !p.name;

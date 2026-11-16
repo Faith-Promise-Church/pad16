@@ -60,6 +60,6 @@ A USB cable from the Nord to the iPad (through the audio interface's hub or a po
 ## Clock behavior to expect
 
 - Pad16 sends clock the whole time it is open, not only while the transport runs, so the Nord is already locked when a song starts.
-- Clock is 24 pulses per quarter note. In 6/8, 9/8 and 12/8 Pad16's BPM counts dotted quarters, so the Nord shows a tempo one and a half times higher (6/8 at 60 reads as 90). Synced delays and arpeggios land correctly.
+- Clock is 24 pulses per quarter note. In 6/8, 9/8 and 12/8 the Nord always sees the quarter-note tempo. A song set to count quarter notes (74 on the chart) shows 74 on the Nord. A song set to count the dotted-quarter pulse shows a tempo one and a half times higher (a pulse of 60 reads as 90). Synced delays and arpeggios land correctly.
 - Pressing Start re-anchors the beat. The Nord sees one clock pulse of odd length and no tempo change.
 - Start and Stop messages are off by default (Settings, MIDI). Leave them off unless a Nord program needs them.

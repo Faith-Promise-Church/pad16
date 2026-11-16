@@ -72,7 +72,15 @@ test('repitched loops stay aligned for 32 bars with no drift', async () => {
   const r = await H<any>('alignment', 'repitch');
   expect(Math.abs(r.driftMs)).toBeLessThan(0.5); expect(r.worstMs).toBeLessThan(1.5);
 });
-test('stretched loops stay aligned for 32 bars with no drift', async () => {
+test('a stretched copy that arrives mid loop comes in on the next bar line with no gap', async () => {
+  const r = await H<any>('swap');
+  expect(r.before).toBe(1); expect(r.during).toBe(2);                 // old and new overlap for the crossfade only
+  expect(r.count).toBe(16); expect(r.worstMs).toBeLessThan(1.5);      // every beat sounds, on the grid
+  // the stand-in stretched copy is 1.8 times as loud: bar 2 is still the repitched copy, bar 3 on is the new one
+  expect(r.bar3 / r.bar2).toBeGreaterThan(1.5); expect(r.bar3 / r.bar2).toBeLessThan(2);
+  expect(r.bar3beat2 / r.bar2).toBeGreaterThan(1.5); expect(r.bar3beat2 / r.bar2).toBeLessThan(2);
+});
+test('stretched loops stay aligned for 32 bars with no drift @webkit', async () => {
   const r = await H<any>('alignment', 'stretch');
   expect(r.stretchedLen).toBe(r.expectLen);
   expect(Math.abs(r.driftMs)).toBeLessThan(0.5);

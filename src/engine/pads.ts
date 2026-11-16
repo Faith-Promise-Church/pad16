@@ -1,6 +1,6 @@
-// The 16 pads: one shots, hold, free loops, tempo-synced loops and patterns, with quantized launch and stop.
+// The pads (two pages of 16): one shots, hold, free loops, tempo-synced loops and patterns, with quantized launch and stop.
 import type { Engine } from './engine';
-import { PadConfig, defaultPad } from '../store/model';
+import { PadConfig, defaultPad, PADS } from '../store/model';
 import { Source } from './scheduler';
 import { quantBeats, nextBoundary, beatsPerBar, Quant } from './time';
 import { Pattern, renderPattern, patternBeats, TrackSrc } from './patterns';
@@ -8,7 +8,7 @@ import { Pattern, renderPattern, patternBeats, TrackSrc } from './patterns';
 export type PadState = 'stopped' | 'queued' | 'playing' | 'stopping';
 export interface PadView { state: PadState; progress: number; lit: boolean }
 
-interface LiveSrc { src: AudioBufferSourceNode; bufferBpm: number; end: number }
+interface LiveSrc { src: AudioBufferSourceNode; g: GainNode; buffer: AudioBuffer; bufferBpm: number; end: number }
 interface Run {
   startBeat: number; stopBeat: number | null; fadeFrom: number | null;
   gain: GainNode; sched: number; len: number; live: Set<LiveSrc>; clockRun: number;
@@ -24,7 +24,7 @@ export interface PadRt {
 }
 
 export class PadPlayer implements Source {
-  pads: PadRt[] = Array.from({ length: 16 }, (_, i) => ({ i, cfg: defaultPad(i), buffer: null, stretched: null, voice: null, run: null, litUntil: 0 }));
+  pads: PadRt[] = Array.from({ length: PADS }, (_, i) => ({ i, cfg: defaultPad(i), buffer: null, stretched: null, voice: null, run: null, litUntil: 0 }));
   globalQuant: Quant = 'bar';
   patterns: (id: string) => Pattern | undefined = () => undefined;
   trackBuffer: (src: TrackSrc) => AudioBuffer | null = () => null;
@@ -170,6 +170,33 @@ export class PadPlayer implements Source {
     for (const l of r.live) { try { l.src.stop(at); } catch { /* fine */ } }
     if (typeof setTimeout !== 'undefined') setTimeout(() => { try { g.disconnect(); } catch { /* fine */ } }, (fade + 0.2) * 1000);
   }
+  /** A stretched copy just became ready while the loop is sounding repitched: bring it in on the next bar line
+   *  with a short crossfade, instead of waiting for the loop to come round (a long loop can be most of a minute). */
+  swapIn(i: number): void {
+    const p = this.pads[i], r = p.run, e = this.eng, s = p.stretched;
+    try {
+      if (!r || !s || r.clockRun !== e.clock.run || p.cfg.mode !== 'loop' || p.cfg.sync !== 'stretch') return;
+      const now = e.now(), X = 0.012;
+      const nb = e.clock.nextBarLine(e.clock.beatAt(now + 0.05 + X));
+      if (nb < r.startBeat + 1e-6 || (r.stopBeat !== null && r.stopBeat <= nb + 1e-6)) return;
+      if (Math.abs(e.clock.bpmAtBeat(nb + 1e-6) - s.bpm) > 0.05) return;                 // the tempo moved on again
+      const pass = r.startBeat + Math.floor((nb - r.startBeat) / r.len + 1e-9) * r.len;
+      if (nb - pass < 1e-6 || nb + 1e-6 >= pass + r.len) return;                          // the loop point: the scheduler starts the new copy there
+      const old = [...r.live].filter(l => l.buffer !== s.buffer && l.end > e.clock.timeAt(nb));
+      if (!old.length) return;
+      const T = e.clock.timeAt(nb), bufDur = Math.min(s.buffer.duration, (r.len * 60) / s.bpm), offset = ((nb - pass) * 60) / s.bpm - X;
+      if (offset < 0 || offset >= bufDur) return;
+      const src = e.ctx.createBufferSource(), g = e.ctx.createGain();
+      src.buffer = s.buffer; g.gain.value = 0;
+      g.gain.setValueAtTime(0, T - X); g.gain.linearRampToValueAtTime(p.cfg.volume, T);
+      src.connect(g); g.connect(r.gain);
+      src.start(T - X, offset, bufDur - offset);
+      const l: LiveSrc = { src, g, buffer: s.buffer, bufferBpm: s.bpm, end: e.clock.timeAt(pass + r.len) };
+      r.live.add(l);
+      src.onended = () => { r.live.delete(l); try { g.disconnect(); } catch { /* fine */ } };
+      for (const o of old) { o.g.gain.setValueAtTime(o.g.gain.value, T - X); o.g.gain.linearRampToValueAtTime(0, T); o.src.stop(T + 0.01); o.end = T; }
+    } catch { /* the repitched copy keeps playing */ }
+  }
   stopAll(fade = 0.05): void { for (const p of this.pads) this.kill(p, fade); }
 
   schedule(_from: number, to: number): void {
@@ -229,7 +256,7 @@ export class PadPlayer implements Source {
       // tempo changes already queued inside this pass
       for (const s of e.clock.segments) if (s.time > t && s.time < endTime) src.playbackRate.setValueAtTime(s.bpm / bufferBpm, s.time);
       src.start(t, offset, bufDur - offset);
-      const l: LiveSrc = { src, bufferBpm, end: endTime };
+      const l: LiveSrc = { src, g, buffer, bufferBpm, end: endTime };
       r.live.add(l);
       src.onended = () => { r.live.delete(l); try { g.disconnect(); } catch { /* fine */ } };
     }

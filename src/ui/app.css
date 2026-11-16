@@ -110,7 +110,18 @@ h2, p { margin: 0; }
 /* ---------- stage: grid and rail ---------- */
 .stage { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 0; min-width: 0; }
 .grid-wrap { container-type: size; display: grid; place-items: center; padding: calc(var(--u) * 2); min-height: 0; min-width: 0; }
-.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: var(--u); width: min(100cqw, 100cqh); height: min(100cqw, 100cqh); touch-action: none; }
+.grid-col { --side: min(100cqw, calc(100cqh - var(--touch) - var(--u))); display: grid; grid-template-rows: var(--touch) var(--side); gap: var(--u); width: var(--side); }
+.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: var(--u); width: 100%; height: 100%; touch-action: none; }
+.pages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--u); touch-action: none; }
+.page-tab {
+  display: flex; align-items: center; gap: var(--u); min-width: 0; padding: 0 calc(var(--u) * 1.5);
+  background: var(--surface); border: var(--hair) solid var(--hairline); border-radius: var(--r-ctl); color: var(--text-2); text-align: left;
+}
+.page-tab[aria-pressed="true"] { background: var(--raised); border-color: var(--hairline-strong); color: var(--text); }
+.page-num { font-weight: var(--w-bold); font-size: var(--fs-value); }
+.page-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-pad); font-weight: var(--w-medium); }
+.page-dot { flex: none; width: var(--u); height: var(--u); border-radius: 50%; background: transparent; }
+.page-tab[data-busy="true"] .page-dot { background: var(--playing); }
 .pad {
   position: relative; display: block; min-width: 0; min-height: 0; padding: 0; overflow: hidden; text-align: left;
   background: var(--surface); border: var(--hair) solid var(--hairline); border-radius: var(--r-pad); touch-action: none;
@@ -266,6 +277,8 @@ h3 { margin: 0; font-size: var(--fs-label); font-weight: var(--w-medium); text-t
 #app[data-rows="2"] .brk2 { display: block; order: 1; margin: 0; }
 #app[data-rows="2"] .t-chip { order: 0; margin-left: auto; }
 #app[data-rows="2"] .wordmark { display: none; }
+/* a single row on an iPad in landscape: the song name needs the room more than the wordmark does */
+@media (max-width: 1499px) { #app[data-rows="1"] .wordmark { display: none; } }
 #app[data-rows="2"] .song-block { justify-content: flex-start; }
 #app[data-rows="2"] .song-btn { text-align: left; flex: 1 1 auto; }
 #app[data-rows="3"] .transport { column-gap: var(--u); padding-inline: var(--u); }
