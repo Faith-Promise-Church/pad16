@@ -10,7 +10,13 @@
 //   - normalizes peaks to -1 dB so pads start at matching levels
 // then writes kits/<Kit Name>/ and rebuilds kits/index.json.
 //
-// File names work the same as in kits/: "5 Snare.wav" goes on pad 5, "[loop]" or "[hold]" sets the mode.
+// File names work the same as in kits/: "5 Snare.wav" goes on pad 5, "[loop]" or "[hold]" sets the mode,
+// and "[92bpm]", "[4bars]" and "[group:a]" carry through to the kit for tempo sync and exclusive groups.
+//
+// Pad mode builds a pad set for the tonic pad from files named by key ("Pad C.wav", "Pad Db.wav", ...):
+//   node scripts/prepare-kit.mjs <source folder> "Pad Set Name" --pad [--length 20] [--fade 2]
+// Each file is trimmed to the set length and gets an equal-power crossfade baked into the loop point,
+// so it loops with no click and the app does not have to do it at load.
 //
 // Options:
 //   --mono            mix to mono (half the memory; fine for most drums)
@@ -18,20 +24,26 @@
 //   --no-normalize    keep original levels
 //   --no-trim         don't trim silence on any file
 //   --replace         overwrite an existing kit with the same name
+//   --pad             pad mode: build a tonic pad set (see above)
+//   --length <sec>    pad mode: loop length in seconds (default 20)
+//   --fade <sec>      pad mode: crossfade length in seconds (default 2)
 //
 // Needs ffmpeg (Mac: brew install ffmpeg).
 
 import { spawnSync } from 'node:child_process';
-import { readdirSync, statSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { readdirSync, statSync, existsSync, mkdirSync, rmSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join, extname, basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseTags, tagSuffix, padKey, KEY_NAMES } from './lib/tags.mjs';
+import { readWav16, writeWav16, bakeLoop } from './lib/wav.mjs';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RATE = 48000;
 const AUDIO = new Set(['.wav', '.mp3', '.ogg', '.oga', '.m4a', '.aac', '.flac', '.aif', '.aiff', '.caf', '.webm', '.opus', '.wma']);
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 /* ---------- arguments ---------- */
-const opts = { mono: false, peak: -1, normalize: true, trim: true, replace: false };
+const opts = { mono: false, peak: -1, normalize: true, trim: true, replace: false, pad: false, length: 20, fade: 2 };
 const pos = [];
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
@@ -41,17 +53,21 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === '--no-trim') opts.trim = false;
   else if (a === '--replace') opts.replace = true;
   else if (a === '--peak') opts.peak = parseFloat(argv[++i]);
+  else if (a === '--pad') opts.pad = true;
+  else if (a === '--length') opts.length = parseFloat(argv[++i]);
+  else if (a === '--fade') opts.fade = parseFloat(argv[++i]);
   else if (a === '-h' || a === '--help') { usage(); process.exit(0); }
   else if (a.startsWith('--')) fail(`Unknown option ${a}`);
   else pos.push(a);
 }
 function usage() {
-  console.log('Usage: node scripts/prepare-kit.mjs <source folder> ["Kit Name"] [--mono] [--peak -1] [--no-normalize] [--no-trim] [--replace]');
+  console.log('Usage: node scripts/prepare-kit.mjs <source folder> ["Kit Name"] [--mono] [--peak -1] [--no-normalize] [--no-trim] [--replace]\n       node scripts/prepare-kit.mjs <source folder> ["Pad Set Name"] --pad [--length 20] [--fade 2] [--mono] [--replace]');
 }
-function fail(msg) { console.error(`\n✗ ${msg}\n`); process.exit(1); }
+function fail(msg) { console.error(`\nError: ${msg}\n`); process.exit(1); }
 
 if (!pos[0]) { usage(); process.exit(1); }
 if (!Number.isFinite(opts.peak) || opts.peak > 0) fail('--peak takes a number of dB at or below 0, like -1');
+if (!(opts.length > 1) || !(opts.fade > 0.05) || opts.fade > opts.length / 2) fail('--length must be over 1 second and --fade between 0.05 seconds and half the length');
 
 const src = resolve(pos[0]);
 if (!existsSync(src) || !statSync(src).isDirectory()) fail(`Can't find the folder ${src}`);
@@ -64,14 +80,9 @@ if (ff.error) fail("ffmpeg isn't installed. On a Mac run: brew install ffmpeg");
 
 /* ---------- names ---------- */
 function parse(file) {
-  let base = file.slice(0, -extname(file).length);
-  let mode = 'oneshot';
-  base = base.replace(/\s*\[(loop|hold|oneshot|one shot)\]\s*/gi, (_, m) => { mode = m.toLowerCase().replace(' ', ''); return ' '; });
-  let pad;
-  const m = base.match(/^\s*(\d{1,2})(?:[\s._-]+|$)(.*)$/);
-  if (m && +m[1] >= 1 && +m[1] <= 16) { pad = +m[1]; base = m[2]; }
-  const name = base.replace(/_+/g, ' ').replace(/[\/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 40) || 'Untitled';
-  return { pad, name, mode };
+  const t = parseTags(file);
+  const name = (t.name || 'Untitled').replace(/[\/\\:*?"<>|]/g, '-');
+  return { ...t, name, mode: t.mode || 'oneshot' };
 }
 
 /* ---------- ffmpeg helpers ---------- */
@@ -104,7 +115,9 @@ if (existsSync(dest)) {
   for (const f of existing) rmSync(join(dest, f));
 } else mkdirSync(dest, { recursive: true });
 
-console.log(`\nPreparing "${kitName}" from ${files.length} file${files.length === 1 ? '' : 's'}…\n`);
+if (opts.pad) { preparePads(); process.exit(0); }
+
+console.log(`\nPreparing "${kitName}" from ${files.length} file${files.length === 1 ? '' : 's'}...\n`);
 
 const rows = [];
 const warnings = [];
@@ -112,13 +125,14 @@ let memory = 0;
 const usedPads = new Set();
 
 for (const file of files) {
-  const { pad, name, mode } = parse(file);
+  const tags = parse(file);
+  const { pad, name, mode } = tags;
   const ext = extname(file).toLowerCase();
   let padNo = pad;
   if (pad && usedPads.has(pad)) { warnings.push(`Two files are numbered ${pad}; "${file}" will go on the next free pad.`); padNo = undefined; }
   if (pad) usedPads.add(pad);
 
-  const outName = `${padNo ? padNo + ' ' : ''}${name}${mode !== 'oneshot' ? ` [${mode}]` : ''}.wav`;
+  const outName = `${padNo ? padNo + ' ' : ''}${name}${tagSuffix(tags)}.wav`;
   const out = join(dest, outName);
   const input = join(src, file);
 
@@ -195,7 +209,7 @@ for (const r of rows) console.log(cols.map(([, f], i) => String(f(r)).padEnd(wid
 
 const mb = memory / 1048576;
 console.log(`\nMemory on the iPad once loaded: about ${mb.toFixed(0)} MB${mb > 100 ? ' (heavy: try --mono or shorter samples)' : ''}`);
-if (warnings.length) { console.log('\nCheck these:'); warnings.forEach(x => console.log(`  • ${x}`)); }
+if (warnings.length) { console.log('\nCheck these:'); warnings.forEach(x => console.log(`  - ${x}`)); }
 
 /* ---------- index ---------- */
 console.log('');
@@ -203,5 +217,47 @@ const idx = spawnSync(process.execPath, [join(ROOT, 'scripts', 'build-kits.mjs')
 if (idx.status !== 0) fail('Building kits/index.json failed');
 
 console.log(`\nDone: kits/${kitName}/`);
-console.log('Try it:  python3 -m http.server   then open http://localhost:8000');
+console.log('Try it:  npm run dev   then open http://localhost:5173');
 console.log(`Ship it: git add kits && git commit -m "Add ${kitName}" && git push\n`);
+
+/* ---------- pad mode ---------- */
+function preparePads() {
+  const L = opts.length, X = opts.fade;
+  console.log(`\nPreparing pad set "${kitName}": ${L} s loops with a ${X} s equal-power crossfade baked in...\n`);
+  const notes = [], done = new Set();
+  for (const file of files) {
+    const key = padKey(file), input = join(src, file);
+    if (key < 0) { notes.push(`"${file}" is not named by key (Pad C.wav, Pad Db.wav ...), skipped.`); continue; }
+    if (done.has(key)) { notes.push(`Two files for ${KEY_NAMES[key]}; "${file}" skipped.`); continue; }
+    const dur = probe(input).duration;
+    if (dur < X * 2 + 1) { notes.push(`"${file}" is too short to loop (${dur.toFixed(1)} s), skipped.`); continue; }
+    const len = Math.min(L, dur - X);                       // the loop length; it needs len + X seconds of source
+    // ffmpeg decodes and trims; the crossfade itself is the same sample math the app uses
+    const tmp = join(dest, `.tmp-${key}.wav`);
+    const args = ['-y', '-i', input, '-vn', '-map_metadata', '-1', '-t', String(len + X)];
+    if (opts.mono) args.push('-ac', '1');
+    args.push('-ar', String(RATE), '-c:a', 'pcm_s16le', tmp);
+    if (!run(args).ok) { notes.push(`Couldn't convert "${file}", skipped.`); continue; }
+    let wav;
+    try { wav = readWav16(readFileSync(tmp)); } catch (e) { notes.push(`Couldn't read "${file}", skipped.`); continue; } finally { try { unlinkSync(tmp); } catch (e) {} }
+    // out[i] = head fading in + the audio just past the loop end fading out: an equal-power join
+    const chans = wav.channels.map(c => bakeLoop(c, Math.round(X * RATE)));
+    let peak = 0; for (const c of chans) for (let i = 0; i < c.length; i++) peak = Math.max(peak, Math.abs(c[i]));
+    let gain = 0;
+    if (opts.normalize && peak > 1e-5) { gain = Math.min(opts.peak - 20 * Math.log10(peak), 30); const g = Math.pow(10, gain / 20); for (const c of chans) for (let i = 0; i < c.length; i++) c[i] *= g; }
+    const out = join(dest, `Pad ${KEY_NAMES[key]} [baked].wav`);
+    writeFileSync(out, writeWav16(chans, RATE));
+    done.add(key);
+    const info = probe(out);
+    console.log(`  ${KEY_NAMES[key].padEnd(3)} ${info.duration.toFixed(1)} s  ${info.channels === 1 ? 'mono' : 'stereo'}  ${gain >= 0 ? '+' : ''}${gain.toFixed(1)} dB`);
+  }
+  const missing = KEY_NAMES.filter((_, i) => !done.has(i));
+  if (!done.size) fail('No files named by key were found. Name them Pad C.wav, Pad Db.wav and so on.');
+  if (missing.length) notes.push(`No sample for ${missing.join(', ')}. The app will pitch-shift the nearest key and label it as a fallback.`);
+  console.log(`\nThe app keeps at most three pads in memory at once.`);
+  if (notes.length) { console.log('\nCheck these:'); notes.forEach(x => console.log(`  - ${x}`)); }
+  console.log('');
+  const idx = spawnSync(process.execPath, [join(ROOT, 'scripts', 'build-kits.mjs')], { stdio: 'inherit' });
+  if (idx.status !== 0) fail('Building kits/index.json failed');
+  console.log(`\nDone: kits/${kitName}/\nShip it: git add kits && git commit -m "Add ${kitName}" && git push\n`);
+}

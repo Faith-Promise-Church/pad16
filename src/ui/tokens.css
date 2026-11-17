@@ -1,0 +1,124 @@
+/* Design tokens. Every color, size, radius and duration the interface uses is defined here and nowhere else. */
+:root {
+  /* color: dark theme (default) */
+  --bg: #0B0C0E;
+  --surface: #15171A;
+  --raised: #1E2125;
+  --hairline: #2A2E33;
+  --hairline-strong: #747B84;
+  --text: #F2F3F5;
+  --text-2: #9AA1A9;
+  --on-accent: #0B0C0E;
+  /* saturated color carries state and nothing else */
+  --playing: #3DDC84;
+  --queued: #FFB020;
+  --stopping: #FF5A4D;
+  --cue: #4DA3FF;
+  --select: #FFFFFF;
+  --meter-ok: #3DDC84;
+  --meter-warn: #FFB020;
+  --meter-clip: #FF5A4D;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --tint: 14%;
+  /* pad colors: muted, to tell pads apart. They never stand for a state. */
+  --pad-sand: #C2A878;
+  --pad-clay: #B8805F;
+  --pad-rose: #B47A86;
+  --pad-plum: #8E7AA8;
+  --pad-slate: #6F87A8;
+  --pad-teal: #5E9C9A;
+  --pad-sage: #7FA07A;
+  --pad-stone: #8C9199;
+  --tint-pad: 20%;
+  --tint-pad-edge: 50%;
+  --tint-swatch: 70%;
+
+  /* type: one family. DIN ships only in the iOS build; the web build falls back to Barlow. */
+  --font: "DIN", "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --w-light: 300;
+  --w-regular: 400;
+  --w-medium: 500;
+  --w-bold: 700;
+  --fs-bpm: 60px;
+  --fs-barbeat: 28px;
+  --fs-title: 22px;
+  --fs-pad: 17px;
+  --fs-value: 17px;
+  --fs-label: 12px;
+  --ls-label: 0.06em;
+
+  /* space on an 8 px unit */
+  --u: 8px;
+  --hair: 1px;
+  --stroke: 1.5px;
+  --outline: 2px;
+  --touch: 48px;
+  --touch-min: 44px;   /* the smallest a control may be, used where a phone row has to fit */
+  --h-transport: 72px;
+  --h-strip: 96px;
+  --h-tabs: 56px;
+  --w-rail: 400px;
+  --w-sheet: 720px;
+  --w-sheet-wide: 1240px;
+  --w-fader: 48px;
+  --h-fader: 176px;
+  --h-track: 8px;
+  --h-progress: 4px;
+  --icon: 24px;
+  --icon-s: 18px;
+  --light: 20px;
+
+  /* shape and motion */
+  --r-pad: 12px;
+  --r-ctl: 8px;
+  --r-pill: 999px;
+  --dur: 120ms;
+  --ease: ease;
+}
+
+/* Daylight theme for outdoor sets: state colors darkened to hold 4.5:1 on white. */
+:root[data-theme="light"] {
+  --bg: #FFFFFF;
+  --surface: #F3F4F6;
+  --raised: #E6E8EC;
+  --hairline: #C5CAD1;
+  --hairline-strong: #6B727B;
+  --text: #0B0C0E;
+  --text-2: #474D55;
+  --on-accent: #FFFFFF;
+  --playing: #0A6B33;
+  --queued: #7A4E00;
+  --stopping: #B3231A;
+  --cue: #0A56B0;
+  --select: #0B0C0E;
+  --meter-ok: #0A6B33;
+  --meter-warn: #7A4E00;
+  --meter-clip: #B3231A;
+  --scrim: rgba(11, 12, 14, 0.45);
+  --tint: 16%;
+  --pad-sand: #9A7B3F;
+  --pad-clay: #9A5A38;
+  --pad-rose: #95505F;
+  --pad-plum: #6A5390;
+  --pad-slate: #456594;
+  --pad-teal: #2F7775;
+  --pad-sage: #4E7A48;
+  --pad-stone: #666C75;
+  --tint-pad: 22%;
+}
+
+/* iPhone: one step down the scale. Nothing goes under 12 px. */
+@media (max-width: 699px) {
+  :root {
+    --fs-bpm: 44px;
+    --fs-barbeat: 22px;
+    --fs-title: 20px;
+    --fs-pad: 14px;
+    --fs-value: 16px;
+    --h-transport: 64px;
+    --h-fader: 144px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur: 0ms; }
+}

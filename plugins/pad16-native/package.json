@@ -1,0 +1,11 @@
+{
+  "name": "pad16-native",
+  "version": "1.0.0",
+  "description": "Pad16 native shell: CoreMIDI bridge, audio session control and the native cue click",
+  "license": "MIT",
+  "private": true,
+  "main": "index.js",
+  "files": ["ios/Sources", "Package.swift", "index.js"],
+  "capacitor": { "ios": { "src": "ios" } },
+  "peerDependencies": { "@capacitor/core": ">=8.0.0" }
+}
