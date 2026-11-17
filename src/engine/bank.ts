@@ -24,6 +24,11 @@ export class SampleBank {
 
   async init(): Promise<void> {
     this.builtin = await renderBuiltinKit().catch(() => []);
+    await this.loadIndex();
+  }
+  /** True once the list of kits, pad sets and click sets has arrived. Without it the pads fall back to stand-in sounds. */
+  indexLoaded = false;
+  async loadIndex(): Promise<boolean> {
     try {
       const r = await fetch('kits/index.json', { cache: 'no-cache' });
       const j = r.ok ? await r.json() : {};
@@ -32,7 +37,9 @@ export class SampleBank {
         padsets: Array.isArray(j.padsets) ? j.padsets.filter((k: any) => k && k.name && k.keys) : [],
         clicksets: Array.isArray(j.clicksets) ? j.clicksets.filter((k: any) => k && k.name && k.files) : [],
       };
-    } catch { this.index = { kits: [], padsets: [], clicksets: [] }; }
+      this.indexLoaded = r.ok;
+    } catch { this.index = { kits: [], padsets: [], clicksets: [] }; this.indexLoaded = false; }
+    return this.indexLoaded;
   }
   private key(ref: SampleRef): string {
     return ref.t === 'kit' ? `kit:${ref.kit}/${ref.file}` : ref.t === 'audio' ? `audio:${ref.id}` : ref.t === 'synth' ? `synth:${ref.id}` : ref.t === 'builtin' ? `builtin:${ref.i}` : 'none';
@@ -69,14 +76,32 @@ export class SampleBank {
     if (b || ref.t === 'none' || ref.t === 'builtin' || ref.t === 'synth') return { buffer: b, missing: false };
     return { buffer: this.builtin[padIndex % 16] ?? this.eng.synthBuffer('stomp'), missing: true };
   }
-  /** Decoded already? Synchronous lookup for the scheduler. */
+  /** Decoded already? Synchronous lookup for the scheduler. A file that fails to download is tried again:
+   *  after 2 seconds, then 4, 8 and so on up to every 30. It is never given up on, and never asked for on every call. */
   private ready = new Map<string, AudioBuffer | null>();
+  private loading = new Set<string>();
+  private failed = new Map<string, { at: number; n: number }>();
   peek(ref: SampleRef): AudioBuffer | null {
     const k = this.key(ref);
     if (this.ready.has(k)) return this.ready.get(k)!;
-    this.load(ref).then(b => this.ready.set(k, b));
+    if (this.loading.has(k)) return null;
+    const f = this.failed.get(k);
+    if (f && performance.now() - f.at < Math.min(30000, 1000 * 2 ** f.n)) return null;
+    this.loading.add(k);
+    this.load(ref).then(b => {
+      this.loading.delete(k);
+      if (b || (ref.t !== 'kit' && ref.t !== 'audio')) { this.ready.set(k, b); this.failed.delete(k); }
+      else this.failed.set(k, { at: performance.now(), n: (f?.n || 0) + 1 });
+    });
     return null;
   }
+  /** Where a sample stands: decoded, on its way, or failed and waiting for the next try. */
+  status(ref: SampleRef): 'ready' | 'loading' | 'failed' {
+    const k = this.key(ref);
+    return this.ready.has(k) ? 'ready' : this.failed.has(k) && !this.loading.has(k) ? 'failed' : 'loading';
+  }
+  /** Try failed downloads again now (the network just came back). */
+  retryNow(): void { for (const f of this.failed.values()) f.at = -1e9; }
   /** Store an imported file and return a reference to it. Throws if the browser cannot decode it. */
   async importAudio(name: string, data: ArrayBuffer, id = uid()): Promise<{ ref: SampleRef; buffer: AudioBuffer }> {
     const buffer = await this.decode(data);

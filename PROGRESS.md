@@ -28,6 +28,7 @@ Branch: `live-rig`. Never push to `main`.
 - Two pad pages per song with shared pads. Page 1 all cajon, page 2 kick.
 - 6/8: tempo counted in quarter notes (chart tempo), a full 6/8 layout, a shaker pattern cut from the loop.
 - Built-in set "Acoustic set": 8 songs with keys, tempos and meters.
+- Failed sample downloads retry by themselves; pads show Loading or No sample; Diagnostics lists missing files.
 - Eighth-note click on the 6/8 songs too. Click menu reachable on a phone (press and hold Click, or from the Song tab or tempo sheet). Deliverance added to the set.
 - Cajon pads 9 to 14 are full grooves on the kick figures. Phone layout: time signature in the tempo row, a small page switch, bigger pads with readable names.
 - Eighth-note click on the 4/4 songs, every cajon pad in group B, muted pad colors (by instrument, editable per pad).

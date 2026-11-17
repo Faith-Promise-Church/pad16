@@ -116,6 +116,7 @@ export function pagesView(ui: UI, compact = false): View {
 export function gridView(ui: UI): View {
   const { app } = ui, pads = app.eng.pads;
   const el = h('div', { class: 'grid', attrs: { 'aria-label': 'Pads' } });
+  let tick = 0;
   const cells = Array.from({ length: 16 }, (_, i) => {
     const name = h('span', { class: 'pad-name' }), type = h('span', { class: 'pad-type' }), state = h('span', { class: 'pad-state' });
     const group = h('span', { class: 'pad-group' }), prog = h('span', { class: 'pad-progress' }), canvas = h('canvas');
@@ -144,7 +145,7 @@ export function gridView(ui: UI): View {
       if (files.length && !app.state.settings.editLock) app.loadFiles(files, app.page * PAGE + i);
     });
     el.append(b);
-    return { b, name, type, state, group, prog, canvas, typeIcon: '', buf: null as AudioBuffer | null, w: 0, lastState: '' };
+    return { b, name, type, state, group, prog, canvas, typeIcon: '', buf: null as AudioBuffer | null, w: 0, lastState: '', gap: '' as '' | 'loading' | 'failed', gapPad: -1 };
   });
   function drawWave(c: (typeof cells)[number], buffer: AudioBuffer | null) {
     const r = c.canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -184,10 +185,12 @@ export function gridView(ui: UI): View {
     },
     frame() {
       const e = app.eng, beat = e.clock.beatAt(e.now()), blink = still || beat - Math.floor(beat) < 0.5;
+      const check = ++tick % 20 === 0;            // a few times a second is plenty for download status
       cells.forEach((c, slot) => {
         const i = app.padAt(slot), v = pads.view(i), meta = app.padMeta[i];
+        if (check || c.gapPad !== i) { c.gap = app.padGap(i); c.gapPad = i; }
         const label = v.state === 'queued' ? 'Queued' : v.state === 'stopping' ? 'Stopping' : v.state === 'playing' ? 'Playing'
-          : meta.missing ? 'Stand-in' : meta.stretch === 'busy' ? 'Rendering' : meta.stretch === 'failed' ? 'Repitch' : '';
+          : meta.missing ? 'Stand-in' : c.gap ? (c.gap === 'failed' ? 'No sample' : 'Loading') : meta.stretch === 'busy' ? 'Rendering' : meta.stretch === 'failed' ? 'Repitch' : '';
         const key = v.state + (v.lit ? 'L' : '') + label;
         if (key !== c.lastState) { c.lastState = key; c.b.dataset.state = v.state; c.b.dataset.lit = String(v.lit && v.state === 'stopped'); c.state.textContent = label; c.b.dataset.label = String(!!label); }
         if (v.state === 'queued') c.b.dataset.blink = String(blink);

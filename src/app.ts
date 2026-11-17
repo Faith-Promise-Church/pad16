@@ -97,6 +97,9 @@ export class App {
     window.addEventListener('pagehide', () => this.flush());
 
     await this.bank.init();
+    // samples that failed to download are tried again, on a timer and the moment the network returns
+    window.setInterval(() => this.recoverSamples(), 3000);
+    window.addEventListener('online', () => { this.bank.retryNow(); this.padRetry.clear(); this.recoverSamples(); });
     if (Native) {
       try {
         this.route = await Native.audioInfo();
@@ -267,6 +270,55 @@ export class App {
     if (cfg.mode === 'pattern') this.warmPattern(cfg.patternId);
     this.ensureStretch(i, this.eng.transport.targetBpm);
     this.emit();
+  }
+  /* ---------- samples that did not arrive ---------- */
+  private padRetry = new Map<number, { at: number; n: number }>();
+  private gapToast = false;
+  private clickRetryAt = 0;
+  private bootAt = performance.now();
+  /** The sample files a pad's pattern plays. */
+  private patternRefs(cfg: PadConfig): SampleRef[] {
+    const p = cfg.mode === 'pattern' ? this.state.patterns.find(x => x.id === cfg.patternId) : undefined;
+    return p ? p.tracks.filter(t => t.src.t !== 'pad' && !t.mute && t.steps.some(Boolean)).map(t => this.realSample(t.src as SampleRef)) : [];
+  }
+  /** Is a pad still waiting for a sample? 'loading' while it downloads, 'failed' between tries. */
+  padGap(i: number): '' | 'loading' | 'failed' {
+    const cfg = this.song.pads[i];
+    if (this.padMeta[i].missing && cfg.src.t === 'kit') return 'failed';
+    let out: '' | 'loading' | 'failed' = '';
+    for (const r of this.patternRefs(cfg)) { const st = this.bank.status(r); if (st === 'failed') return 'failed'; if (st === 'loading') out = 'loading'; }
+    return out;
+  }
+  /** Names of the files this song is still missing, for the diagnostics page. */
+  sampleGaps(): string[] {
+    const out = new Set<string>(), name = (r: SampleRef) => (r.t === 'kit' ? `${r.kit}/${r.file}` : r.t === 'audio' ? 'an imported sample' : '');
+    this.song.pads.forEach((cfg, i) => {
+      if (this.padMeta[i].missing) out.add(name(cfg.src) || 'a sample');
+      for (const r of this.patternRefs(cfg)) if (this.bank.status(r) !== 'ready') out.add(name(r) || 'a sample');
+    });
+    return [...out];
+  }
+  /** Ask again for whatever has not arrived: the kit list, a pad's own file, a pattern's samples. */
+  private async recoverSamples(): Promise<void> {
+    try {
+      if (!this.bank.indexLoaded && (await this.bank.loadIndex())) { this.loadClickSamples(); this.emit(); this.saveForOffline(); }
+      const now = performance.now();
+      // the click set: without its samples the built-in click plays, so it is never silent, but keep asking
+      const cs = this.clickSet;
+      if (cs && now >= this.clickRetryAt && (['accent', 'beat', 'sub'] as ClickKind[]).some(k => cs.files[k] && !this.song.click.samples[k] && !this.webClick.hasSample(k))) { this.clickRetryAt = now + 10000; this.loadClickSamples(); }
+      this.song.pads.forEach((cfg, i) => {
+        if (cfg.mode === 'pattern') this.warmPattern(cfg.patternId);           // the bank spaces out its own retries
+        if (!this.padMeta[i].missing || cfg.src.t !== 'kit') return;
+        const r = this.padRetry.get(i);
+        if (r && now - r.at < Math.min(30000, 1000 * 2 ** r.n)) return;
+        this.padRetry.set(i, { at: now, n: (r?.n || 0) + 1 });
+        this.loadPad(i, cfg).then(() => { if (!this.padMeta[i].missing) this.padRetry.delete(i); });
+      });
+      // say so once if something is still missing a while after opening, and again when it has all arrived
+      const gaps = now - this.bootAt > 8000 ? this.sampleGaps().length : 0;
+      if (gaps && !this.gapToast) { this.gapToast = true; this.toast(navigator.onLine === false ? 'Some samples are not on this device yet. They will download when it is online.' : 'Some samples have not downloaded yet. Trying again.', 6000); }
+      else if (this.gapToast && now - this.bootAt > 8000 && !this.sampleGaps().length) { this.gapToast = false; this.toast('All samples loaded.', 3000); }
+    } catch { /* next tick */ }
   }
   /** Decode a pattern's track samples ahead of time so the first pass is complete. */
   warmPattern(id: string) { const p = this.state.patterns.find(x => x.id === id); if (p) for (const t of p.tracks) if (t.src.t !== 'pad') this.bank.peek(this.realSample(t.src as SampleRef)); }

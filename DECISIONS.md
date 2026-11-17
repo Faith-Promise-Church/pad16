@@ -141,3 +141,8 @@ Choices made without asking, each with the reason. Newest phases at the bottom.
 83. **Every song in the set clicks with eighth-note subdivisions**, the two 6/8 songs included (three to the pulse). This replaces the 6/8 exception in 75. Set once on saved 6/8 songs that still had subdivisions off.
 84. **The click menu on a phone: press and hold the Click button.** The tools row has no room for the separate settings button. A short tap still only switches the click. The same menu is linked from the Song tab and from the tempo sheet, so it can also be found without knowing the gesture.
 85. **Deliverance (A, 72, 4/4) was added to the end of the acoustic set**, in the built-in set and once in the saved copy of it.
+
+## Samples that fail to download
+
+86. **A failed sample download is tried again, without a reload.** Before, one failure on a first open (weak signal, a network filter) left the pad on a stand-in or its pattern silent until the page was reloaded, which looks like "works on one phone, not on another": the first phone has every file cached from earlier visits. Now the kit list, a pad's own file, pattern samples and the click set are asked for again after 2 seconds, then 4, 8 and so on up to every 30, and at once when the device comes back online.
+87. **The pad says what it is waiting for.** "Loading" while a pattern's samples download, "No sample" between tries, "Stand-in" for a loop playing its stand-in. A message appears once if anything is still missing 8 seconds after opening, and once more when it has all arrived. Settings, Diagnostics, Samples lists the files still missing.

@@ -41,6 +41,8 @@ export class WebClick implements ClickBackend {
   constructor(private eng: Engine) {}
   setSettings(s: ClickSettings) { this.settings = s; }
   setSample(slot: ClickKind, buffer: AudioBuffer | null) { this.samples[slot] = buffer; }
+  /** True when this slot plays a loaded sample, false when it plays the built-in click. */
+  hasSample(slot: ClickKind): boolean { return !!this.samples[slot]; }
   schedule(from: number, to: number): void {
     const e = this.eng, now = e.now();
     for (const ev of clickPlan(e, from, to, this.settings)) {

@@ -130,6 +130,37 @@ test.describe('phone layout', () => {
   });
 });
 
+test.describe('a first open on a bad connection', () => {
+  test.use({ viewport: { width: 393, height: 700 }, hasTouch: true });
+  test('samples that fail to download are asked for again, with no reload @webkit', async ({ page }) => {
+    test.setTimeout(60_000);
+    // every sample download fails at first, the way a weak signal or a network filter would have it
+    let block = true;
+    await page.route('**/kits/**', r => (block && !r.request().url().endsWith('index.json') ? r.abort() : r.continue()));
+    await page.goto('/');
+    await page.waitForSelector('html[data-ready="true"]');
+    const tracks = `a => { let ok = 0, all = 0; for (const pad of a.song.pads) { const p = a.state.patterns.find(x => x.id === pad.patternId); if (pad.mode !== 'pattern' || !p) continue; for (const t of p.tracks) if (t.steps.some(Boolean)) { all++; if (a.eng.pads.trackBuffer(t.src)) ok++; } } return ok + '/' + all; }`;
+    // the pads say what is wrong instead of sitting silent, and the diagnostics page names the files
+    await expect(page.locator('.pad').nth(0).locator('.pad-state')).toHaveText('Stand-in');
+    await expect(page.locator('.pad').nth(4).locator('.pad-state')).toHaveText(/No sample|Loading/);
+    expect(await app<string>(page, tracks)).toMatch(/^0\//);
+    expect(await app<string[]>(page, 'a => a.sampleGaps()')).toContain('Acoustic Set/Shaker 80 [loop] [80bpm] [8bars].wav');
+    await expect.poll(() => app(page, 'a => a.toastMsg'), { timeout: 15000 }).toContain('Trying again');
+    // the connection comes good: everything arrives by itself
+    block = false;
+    await expect.poll(() => app<string>(page, tracks), { timeout: 30000 }).toMatch(/^(\d+)\/\1$/);
+    await expect.poll(() => app(page, 'a => a.padMeta[0].missing'), { timeout: 30000 }).toBe(false);
+    await expect.poll(() => app<string[]>(page, 'a => a.sampleGaps()'), { timeout: 10000 }).toEqual([]);
+    await expect(page.locator('.pad').nth(4).locator('.pad-state')).toHaveText('');
+    await expect.poll(() => app(page, 'a => a.toastMsg'), { timeout: 10000 }).toContain('All samples loaded');
+    expect(await app(page, 'a => Math.round(a.eng.pads.pads[0].buffer.duration)')).toBe(24);       // the real shaker, not the stand-in
+    // and the cajon loop sounds
+    await page.locator('.pad').nth(4).tap();
+    await expect(page.locator('.pad').nth(4)).toHaveAttribute('data-state', 'playing', { timeout: 6000 });
+    expect(await app(page, 'async a => { let top = 0; for (let i = 0; i < 400 && top < 0.02; i++) { top = Math.max(top, a.eng.mixer.level("drums")); await new Promise(r => setTimeout(r, 15)); } return top > 0.02; }')).toBe(true);
+  });
+});
+
 test.describe('stage behavior', () => {
   test.use({ viewport: { width: 1366, height: 1024 }, hasTouch: true });
   test.beforeEach(async ({ page }) => { await start(page); await app(page, 'a => a.loadKit("builtin")'); await page.locator('.pad').first().tap(); });
