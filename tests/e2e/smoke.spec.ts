@@ -294,6 +294,17 @@ test.describe('stage behavior', () => {
     await expect.poll(() => app(page, 'a => a.padMeta[0].stretch + ":" + (a.eng.pads.pads[0].stretched || {}).bpm'), { timeout: 30000 }).toBe('ready:86');
     expect(await app(page, 'a => a.stretchWarning(0)')).toBe(false);
   });
+  test('a pad saved with a kit file name that has since changed takes the file now in that slot', async ({ page }) => {
+    await app(page, 'a => a.loadKit("Acoustic Set")');
+    // as an early build saved it: the shaker loop under its first file name, with that file's tempo
+    await app(page, `a => { const p = { ...a.song.pads[13], src: { t: 'kit', kit: 'Acoustic Set', file: '14 Shaker Loop [loop] [96bpm] [1bars].wav' }, sourceBpm: 96, lengthBeats: 4, volume: 0.6 }; a.song.pads[13] = p; return a.loadPad(13, p); }`);
+    await expect.poll(() => app(page, 'a => a.padMeta[13].missing')).toBe(false);
+    expect(await app(page, 'a => [a.song.pads[13].src.file, a.song.pads[13].sourceBpm, a.song.pads[13].lengthBeats, a.song.pads[13].volume]')).toEqual(['14 Shaker Loop [loop] [113bpm] [2bars].wav', 113, 8, 0.6]);
+    await expect(page.locator('.pad').nth(13).locator('.pad-state')).toHaveText('');
+    // a file that is simply unreachable is left alone and shown as a stand-in
+    await app(page, `a => { const p = { ...a.song.pads[2], src: { t: 'kit', kit: 'No Such Kit', file: '3 Gone.wav' } }; a.song.pads[2] = p; return a.loadPad(2, p); }`);
+    expect(await app(page, 'a => [a.padMeta[2].missing, a.song.pads[2].src.file]')).toEqual([true, '3 Gone.wav']);
+  });
   test('a shared pad edits on both pages until it is made separate', async ({ page }) => {
     await app(page, 'a => a.loadKit("rig")');
     await app(page, 'a => { a.state.settings.edit = true; a.setPage(1); a.changed(); }');

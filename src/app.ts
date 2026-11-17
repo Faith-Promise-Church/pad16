@@ -262,9 +262,19 @@ export class App {
     if (!initial) this.emit();
     this.saveForOffline();
   }
-  private async loadPad(i: number, cfg: PadConfig, token = this.loadToken): Promise<void> {
+  async loadPad(i: number, cfg: PadConfig, token = this.loadToken): Promise<void> {
     const r = await this.bank.resolve(cfg.src, i);
     if (token !== this.loadToken || this.song.pads[i] !== cfg) return;
+    // the pad points at a kit file that is not in the kit any more (renamed since this song was saved): take the file now in its slot
+    if (r.missing && cfg.src.t === 'kit' && this.bank.indexLoaded) {
+      const src = cfg.src, k = this.bank.index.kits.find(x => x.dir === src.kit || x.name === src.kit), slot = parseInt(src.file, 10);
+      const now = k && !k.pads.some(e => e.file === src.file) && !(k.extras || []).some(e => e.file === src.file) && slot > 0 ? this.kitPads(k)[slot - 1] : undefined;
+      if (now && now.src.t === 'kit') {
+        const healed: PadConfig = { ...cfg, src: now.src, mode: now.mode, sourceBpm: now.sourceBpm, lengthBeats: now.lengthBeats, conf: now.conf, name: cfg.name || now.name };
+        this.song.pads[i] = healed; this.save();
+        return this.loadPad(i, healed, token);
+      }
+    }
     this.padMeta[i] = { missing: r.missing, stretch: 'none' };
     this.eng.pads.setPad(i, cfg, r.buffer);
     if (cfg.mode === 'pattern') this.warmPattern(cfg.patternId);
@@ -338,6 +348,9 @@ export class App {
   async saveForOffline(): Promise<void> {
     if (isNative() || typeof caches === 'undefined' || !navigator.serviceWorker?.controller) return;
     const my = ++this.offlineToken, urls = new Set<string>();
+    // only this app's cache counts: the first version's cache can hold old copies of these files (see sw.js)
+    const names = (await caches.keys()).filter(k => k.startsWith('pad16-app-'));
+    const inOwnCache = async (url: string) => { for (const n of names) if (await (await caches.open(n)).match(url)) return true; return false; };
     const kit = this.bank.index.kits.find(k => k.name === this.song.kit);
     if (kit) for (const e of [...kit.pads, ...(kit.extras || [])]) urls.add(kitUrl(kit.dir, e.file));
     // every kit file a pad or one of its pattern tracks points at, whichever kit it lives in
@@ -352,7 +365,7 @@ export class App {
     this.offline = { done: 0, total: urls.size, active: true }; this.emit();
     for (const u of urls) {
       if (my !== this.offlineToken) return;
-      try { if (!(await caches.match(new URL(u, location.href).href))) { if (!navigator.onLine) break; await fetch(u); } this.offline.done++; } catch { /* try again next launch */ }
+      try { if (!(await inOwnCache(new URL(u, location.href).href))) { if (!navigator.onLine) break; await fetch(u); } this.offline.done++; } catch { /* try again next launch */ }
       this.emit();
     }
     if (my === this.offlineToken) { this.offline.active = false; this.emit(); }

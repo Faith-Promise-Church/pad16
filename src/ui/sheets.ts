@@ -417,7 +417,7 @@ function diagnosticsPane(ui: UI) {
         ['Scheduler', `tick ${app.eng.scheduler.interval} ms, ahead ${Math.round(app.eng.scheduler.lookahead * 1000)} ms, worst late tick ${app.eng.scheduler.jitterMs().toFixed(1)} ms`],
         ['Samples', (() => { const g = app.sampleGaps(); return !app.bank.indexLoaded ? 'the kit list has not downloaded; pads use stand-in sounds' : g.length ? `${g.length} not loaded in this song: ${g.join(', ')}` : 'all loaded for this song'; })()],
         ['Tempo', `${app.eng.clock.bpm} BPM, ${app.eng.clock.ts.num}/${app.eng.clock.ts.den}`],
-        ['Build', `${__PAD16_IOS__ ? 'iOS app' : 'web'}, ${__PAD16_DIN__ ? 'DIN' : 'Barlow'}`],
+        ['Build', `${__PAD16_BUILD__}, ${__PAD16_IOS__ ? 'iOS app' : 'web'}, ${__PAD16_DIN__ ? 'DIN' : 'Barlow'}`],
       ];
       clear(list);
       for (const [k, v] of rows) list.append(h('dt', { text: k }), h('dd', { text: v }));
