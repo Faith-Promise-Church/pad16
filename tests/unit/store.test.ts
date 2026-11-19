@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import { openKV, memoryKV } from '../../src/store/db';
 import { loadState, STATE_KEY, audioKey } from '../../src/store/migrate';
-import { normalizeState, defaultState, rigPads, PADS } from '../../src/store/model';
+import { normalizeState, defaultState, rigPads, normalizeScenes, PADS } from '../../src/store/model';
 import { applySeeds, applyPatches, SEEDS } from '../../src/store/seeds';
 import { pulseBpm } from '../../src/engine/time';
 import { cajonLowFirst } from '../../src/engine/patterns';
@@ -171,5 +171,28 @@ describe('the ready-made set', () => {
     expect(applyPatches(again)).toBe(false); expect(again.songs.some(s => s.name === 'Deliverance')).toBe(false);
     const gone = defaultState(); gone.seeded = ['set-2026-11-acoustic'];
     applyPatches(gone); expect(gone.songs.length).toBe(1); expect(gone.sets.length).toBe(1);
+  });
+  it('scenes: new songs get the starter scenes, songs saved before scenes existed get them once, and bad data is cleaned', () => {
+    const fresh = defaultState();
+    expect(fresh.songs[0].scenes!.map(x => [x.name, x.pads])).toEqual([['Intro', [0]], ['Verse', [0, 8]], ['Chorus', [0, 1, 4]], ['Build', [0, 1, 14]], ['Down', []]]);
+    // a save from before scenes: no scenes field at all
+    const old = JSON.parse(JSON.stringify(fresh)); delete old.songs[0].scenes; old.seeded = [];
+    const loaded = normalizeState(old);
+    expect(loaded.songs[0].scenes).toBeUndefined();
+    expect(applyPatches(loaded)).toBe(true);
+    expect(loaded.songs[0].scenes!.length).toBe(5);
+    // once: deleting them all sticks, and a song that is not on the default layout is left without scenes
+    loaded.songs[0].scenes = [];
+    const again = normalizeState(JSON.parse(JSON.stringify(loaded)));
+    expect(applyPatches(again)).toBe(false); expect(again.songs[0].scenes).toEqual([]);
+    const other = JSON.parse(JSON.stringify(fresh)); delete other.songs[0].scenes; other.songs[0].kit = 'Acoustic Set'; other.seeded = [];
+    const o2 = normalizeState(other); applyPatches(o2); expect(o2.songs[0].scenes).toBeUndefined();
+    // imports and hand edits: at most eight scenes, known pads only, a linked slot becomes its real pad, each pad once
+    const pads = rigPads();
+    const messy = Array.from({ length: 11 }, (_, n) => ({ id: 's' + n, name: 'Scene ' + n, pads: [0, 0, 17, 99, -1, 'x', 24], color: n ? 'rose' : 'neon', tonic: n === 1 ? true : 'yes', click: false }));
+    const clean = normalizeScenes(messy, pads);
+    expect(clean.length).toBe(8);
+    expect(clean[0]).toEqual({ id: 's0', name: 'Scene 0', pads: [0, 1, 24], click: false });       // slot 17 on page 2 shows pad 1
+    expect(clean[1]).toMatchObject({ color: 'rose', tonic: true, click: false });
   });
 });

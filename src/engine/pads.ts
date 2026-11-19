@@ -122,10 +122,15 @@ export class PadPlayer implements Source {
       const nb = e.clock.beatAt(now + 0.004), q = quantBeats(this.quantOf(p), e.clock.segAtBeat(nb).ts);
       startBeat = q > 0 ? nextBoundary(nb, q, this.gridOrigin(nb)) : nb;
     }
+    this.startRun(p, startBeat, len, true);
+  }
+  /** Begin a synced pad at a beat. With groups on, the others in its exclusive group hand over on that beat. */
+  private startRun(p: PadRt, startBeat: number, len: number, groups: boolean): void {
+    const e = this.eng;
     const gain = e.ctx.createGain();
     gain.connect(this.bus(p));
     p.run = { startBeat, stopBeat: null, fadeFrom: null, gain, sched: startBeat, len, live: new Set(), clockRun: e.clock.run, choke: new Map() };
-    if (p.cfg.group) {
+    if (groups && p.cfg.group) {
       for (const o of this.pads) {
         if (o === p || o.cfg.group !== p.cfg.group || !o.run) continue;
         if (o.run.startBeat >= startBeat - 1e-6) this.kill(o, 0);
@@ -134,6 +139,70 @@ export class PadPlayer implements Source {
     }
     if (p.cfg.mode === 'loop' && p.cfg.sync === 'stretch') this.wantStretch(p.i, e.transport.targetBpm);
     this.scheduleRun(p, e.clock.beatAt(e.now() + e.scheduler.lookahead));
+  }
+
+  /** The beat a scene launched now would land on: the next bar line, or a longer boundary when the song's launch quantize is longer than a bar. */
+  sceneBoundary(): number {
+    const e = this.eng, nb = e.clock.beatAt(e.now() + 0.004), ts = e.clock.segAtBeat(nb).ts;
+    const q = Math.max(beatsPerBar(ts), quantBeats(this.globalQuant, ts));
+    return nextBoundary(nb, q, this.gridOrigin(nb));
+  }
+  /** Launch a scene: on one bar line, start the listed loops and patterns that are not playing, stop the ones playing that are not listed,
+   *  and fire the listed one shots. Pads already playing carry on untouched. While stopped, it starts the transport on a downbeat.
+   *  Returns the beat it lands on, or -1 when there was nothing to do (stopped, and the scene has nothing to play). */
+  launchScene(on: number[]): number {
+    const e = this.eng, want = new Set(on);
+    let B: number;
+    if (!e.transport.running) {
+      // an empty scene (or one with nothing loaded) has nothing to start a stopped transport for
+      const playable = this.pads.some(p => want.has(p.i) && (this.synced(p) ? this.lenOf(p) > 0 && (p.cfg.mode !== 'loop' || !!p.buffer) : !!p.buffer && p.cfg.mode !== 'loop'));
+      if (!playable) return -1;
+      e.transport.start(e.padLaunchCountIn ? e.transport.countInBars : 0); B = 0;
+    } else B = this.sceneBoundary();
+    const T = e.clock.timeAt(B);
+    for (const p of this.pads) {
+      const listed = want.has(p.i);
+      if (!this.synced(p)) {
+        // one shots and hold pads in the scene fire once on the bar line; free loops are left to the hand
+        if (listed && p.buffer && p.cfg.mode !== 'loop') this.fireAt(p, Math.max(e.now(), T));
+        continue;
+      }
+      const r = p.run && p.run.clockRun === e.clock.run ? p.run : null;
+      if (listed) {
+        if (r) {
+          // already sounding or queued: keep it, and drop a stop that was waiting
+          if (r.stopBeat !== null) { r.stopBeat = null; r.fadeFrom = null; try { const now = e.now(); r.gain.gain.cancelScheduledValues(now); r.gain.gain.setTargetAtTime(1, now, 0.01); } catch { /* fine */ } }
+          continue;
+        }
+        if (p.run) this.kill(p, 0);
+        const len = this.lenOf(p);
+        if (len <= 0 || (p.cfg.mode === 'loop' && !p.buffer)) continue;
+        this.startRun(p, B, len, false);
+      } else if (r) {
+        if (r.startBeat >= B - 1e-6) this.kill(p, 0);                        // was only queued
+        else if (r.stopBeat === null || r.stopBeat > B) { r.stopBeat = B; r.fadeFrom = null; this.applyStop(p, r); }
+      }
+    }
+    return B;
+  }
+  /** Play a one shot at an audio time. */
+  private fireAt(p: PadRt, when: number): void {
+    const e = this.eng;
+    this.stopVoice(p, 0.006, when);
+    const src = e.ctx.createBufferSource(), g = e.ctx.createGain();
+    src.buffer = p.buffer; src.playbackRate.value = Math.pow(2, p.cfg.pitch / 12);
+    g.gain.value = p.cfg.volume;
+    src.connect(g); g.connect(this.bus(p));
+    src.start(when);
+    const v: Voice = { src, g };
+    p.voice = v;
+    src.onended = () => { if (p.voice === v) p.voice = null; try { g.disconnect(); } catch { /* fine */ } };
+  }
+  /** The synced pads that are sounding or about to (not the ones on their way out). A scene captures these. */
+  sounding(): number[] {
+    const e = this.eng, out: number[] = [];
+    for (const p of this.pads) { const r = p.run; if (r && r.clockRun === e.clock.run && r.stopBeat === null) out.push(p.i); }
+    return out;
   }
 
   private requestStop(p: PadRt, r: Run): void {

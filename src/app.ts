@@ -13,6 +13,7 @@ import { loadState, STATE_KEY } from './store/migrate';
 import { exportSet, importSet } from './store/exportimport';
 import {
   AppState, Song, SetList, PadConfig, Routing, SampleRef, defaultPad, rigPads, RIG_KIT, RIG_PAGES, PAGE, PAGES, PADS, padTarget, defaultRouting, defaultSong, normalizeRouting, uid, MidiAction, SUB_PRESETS, BusId,
+  Scene, MAX_SCENES, SCENE_NAMES, PAD_COLORS, EditDest, rigScenes,
 } from './store/model';
 import { MidiManager } from './midi/manager';
 import { ClockOut } from './midi/clockout';
@@ -22,6 +23,8 @@ import { isNative, Native, NativeMidi, NativeClick, RouteInfo } from './native/p
 import { WebClick } from './engine/click';
 
 export interface PadMeta { missing: boolean; stretch: 'none' | 'busy' | 'ready' | 'failed' }
+/** How a scene button should look: waiting for its bar line, the scene now sounding, or the last one launched after pads were changed by hand. */
+export type SceneLook = '' | 'queued' | 'on' | 'last';
 
 export class App {
   state!: AppState; kv!: KV; ctx!: AudioContext; eng!: Engine; bank!: SampleBank;
@@ -72,6 +75,7 @@ export class App {
       return r.buffer;
     };
     this.eng.transport.onState.push(() => {
+      if (!this.eng.transport.running) this.clearSceneRt();
       if (this.state.settings.midi.startStop) this.clockOut.sendTransport(this.eng.transport.running, this.eng.transport.running ? this.eng.clock.timeAt(0) : undefined);
       this.emit();
     });
@@ -144,7 +148,7 @@ export class App {
   private async wake() {
     try { if ('wakeLock' in navigator && document.visibilityState === 'visible' && !this.wakeLock) { this.wakeLock = await (navigator as any).wakeLock.request('screen'); this.wakeLock.addEventListener('release', () => { this.wakeLock = null; }); } } catch { /* not allowed right now */ }
   }
-  panic(): void { this.eng.panic(); this.song.tonic = { ...this.song.tonic, on: false }; this.patchSong({}, true); this.changed(); }
+  panic(): void { this.clearSceneRt(); this.eng.panic(); this.song.tonic = { ...this.song.tonic, on: false }; this.patchSong({}, true); this.changed(); }
 
   /* ---------- saving ---------- */
   save(): void { clearTimeout(this.saveTimer); this.saveTimer = setTimeout(() => this.flush(), 250); }
@@ -160,6 +164,7 @@ export class App {
   async selectSong(id: string): Promise<void> {
     if (!this.state.songs.some(s => s.id === id) || id === this.state.currentSong) return;
     this.state.currentSong = id; this.page = 0; this.selected = this.selectedVia = 0;
+    this.clearSceneRt();
     this.changed();
     await this.applySong(false);
   }
@@ -452,7 +457,7 @@ export class App {
   /** Put a kit on the pads: 'rig' is the default layout, 'builtin' the first version's synthesized drums, anything else a kit from the repo. */
   async loadKit(name: string): Promise<void> {
     const s = this.song;
-    if (name === RIG_KIT) { s.kit = RIG_KIT; s.pads = rigPads(s.ts); s.pageNames = [...RIG_PAGES]; }
+    if (name === RIG_KIT) { s.kit = RIG_KIT; s.pads = rigPads(s.ts); s.pageNames = [...RIG_PAGES]; if (!s.scenes?.length) s.scenes = rigScenes(); }
     else if (name === 'builtin') { s.kit = ''; s.pads = s.pads.map((_, i) => defaultPad(i)); s.pageNames = []; }
     else {
       const k = this.bank.index.kits.find(x => x.name === name); if (!k) return;
@@ -568,7 +573,97 @@ export class App {
     else if (a === 'tonicToggle') this.patchSong({ tonic: { ...s.tonic, on: !s.tonic.on } });
     else if (a === 'subToggle') this.patchSong({ sub: { ...s.sub, on: !s.sub.on } });
     else if (a === 'padPage') this.setPage((this.page + 1) % PAGES);
+    else if (a === 'nextScene') this.stepScene(1);
+    else if (a === 'prevScene') this.stepScene(-1);
+    else if (a.startsWith('scene')) this.launchSceneAt(parseInt(a.slice(5), 10) - 1);
   }
+
+  /* ---------- modes ---------- */
+  /** Perform shows only what is played live. Edit opens the five destinations. */
+  setEdit(on: boolean, dest?: EditDest): void {
+    const s = this.state.settings;
+    s.edit = on; if (dest) s.dest = dest;
+    this.changed();
+  }
+  setDest(dest: EditDest): void { this.state.settings.dest = dest; this.changed(); }
+
+  /* ---------- scenes ---------- */
+  private sceneRt: { last: string | null; queued: { id: string; beat: number; run: number } | null } = { last: null, queued: null };
+  private sceneTimer: any = null;
+  get scenes(): Scene[] { return this.song.scenes || []; }
+  private clearSceneRt(): void { this.sceneRt = { last: null, queued: null }; clearTimeout(this.sceneTimer); }
+  /** Launch a scene on the next bar line. */
+  launchScene(id: string): void {
+    const sc = this.scenes.find(x => x.id === id), e = this.eng; if (!sc) return;
+    this.unlock();
+    const pads = sc.pads.map(i => padTarget(this.song.pads, i));
+    const B = e.pads.launchScene(pads);
+    const running = B >= 0 && e.transport.running;
+    this.sceneRt.queued = running ? { id, beat: B, run: e.clock.run } : null;
+    if (!running) this.sceneRt.last = id;
+    // ambient, bass and click switch with the scene, on its bar line
+    clearTimeout(this.sceneTimer);
+    const apply = () => {
+      const s = this.song, patch: Partial<Song> = {};
+      if (sc.tonic !== undefined && s.tonic.on !== sc.tonic) patch.tonic = { ...s.tonic, on: sc.tonic };
+      if (sc.sub !== undefined && s.sub.on !== sc.sub) patch.sub = { ...s.sub, on: sc.sub };
+      if (sc.click !== undefined && s.click.on !== sc.click) patch.click = { ...s.click, on: sc.click };
+      if (Object.keys(patch).length) this.patchSong(patch);
+    };
+    const wait = running ? (e.clock.timeAt(B) - e.now()) * 1000 : 0;
+    if (wait > 30 && (sc.tonic !== undefined || sc.sub !== undefined || sc.click !== undefined)) this.sceneTimer = setTimeout(apply, wait); else apply();
+    this.emit();
+  }
+  launchSceneAt(n: number): void { const sc = this.scenes[n]; if (sc) this.launchScene(sc.id); }
+  /** The scene after (or before) the one sounding or waiting. With none yet, the first. */
+  stepScene(dir: 1 | -1): void {
+    const list = this.scenes; if (!list.length) return;
+    const cur = this.sceneRt.queued?.id ?? this.sceneRt.last, i = list.findIndex(x => x.id === cur);
+    const n = i < 0 ? (dir > 0 ? 0 : list.length - 1) : i + dir;
+    if (n >= 0 && n < list.length) this.launchScene(list[n].id);
+  }
+  /** Call once a frame: moves a waiting scene to "sounding" when its bar line arrives. */
+  sceneLooks(): Map<string, SceneLook> {
+    const rt = this.sceneRt, e = this.eng, out = new Map<string, SceneLook>();
+    if (rt.queued) {
+      if (rt.queued.run !== e.clock.run) rt.queued = null;
+      else if (e.clock.beatAt(e.now()) >= rt.queued.beat) { rt.last = rt.queued.id; rt.queued = null; }
+    }
+    if (rt.queued) out.set(rt.queued.id, 'queued');
+    const sc = rt.last ? this.scenes.find(x => x.id === rt.last) : undefined;
+    if (sc && out.get(sc.id) !== 'queued') {
+      const now = new Set(e.pads.sounding());
+      const want = [...new Set(sc.pads.map(i => padTarget(this.song.pads, i)))].filter(i => e.pads.synced(e.pads.pads[i]));
+      out.set(sc.id, want.length === now.size && want.every(i => now.has(i)) ? 'on' : 'last');
+    }
+    return out;
+  }
+  /** A new scene from what is sounding now. */
+  captureScene(): Scene | null {
+    const s = this.song, list = s.scenes || (s.scenes = []);
+    if (list.length >= MAX_SCENES) { this.toast(`A song holds ${MAX_SCENES} scenes. Delete one first.`); return null; }
+    const used = new Set(list.map(x => x.name)), name = SCENE_NAMES.find(n => !used.has(n)) || `Scene ${list.length + 1}`;
+    const sc: Scene = { id: uid(), name, color: PAD_COLORS[list.length % PAD_COLORS.length], pads: this.eng.pads.sounding().sort((a, b) => a - b) };
+    list.push(sc);
+    this.sceneRt.last = sc.id;
+    this.toast(sc.pads.length ? `Saved "${name}" with ${sc.pads.length} pad${sc.pads.length === 1 ? '' : 's'}.` : `Saved "${name}" with no pads: it stops every loop.`);
+    this.changed();
+    return sc;
+  }
+  patchScene(id: string, patch: Partial<Scene>): void {
+    const list = this.scenes, i = list.findIndex(x => x.id === id); if (i < 0) return;
+    const next: Scene = { ...list[i], ...patch };
+    for (const k of ['color', 'tonic', 'sub', 'click'] as const) if (k in patch && patch[k] === undefined) delete next[k];
+    list[i] = next; this.changed();
+  }
+  deleteScene(id: string): void { if (!this.song.scenes) return; this.song.scenes = this.song.scenes.filter(x => x.id !== id); if (this.sceneRt.last === id) this.sceneRt.last = null; this.changed(); }
+  moveScene(id: string, dir: -1 | 1): void {
+    const list = this.scenes, i = list.findIndex(x => x.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]]; this.changed();
+  }
+  /** Nudge the tempo by whole beats per minute, the way the stage buttons do. */
+  nudgeBpm(d: number): void { this.patchSong({ bpm: Math.round((this.song.bpm + d) * 10) / 10 }); }
   setSubPreset(name: string) { const p = SUB_PRESETS[name]; if (p) this.patchSong({ sub: { ...this.song.sub, preset: name, params: { ...p, octave: this.song.sub.params.octave } } }); }
   setTs(ts: TimeSig) { this.patchSong({ ts }); }
 }

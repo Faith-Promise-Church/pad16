@@ -2,7 +2,7 @@
 // what you edit or delete afterwards sticks. A set is added beside what is saved; a change touches only what it names.
 import { TimeSig, TempoCount, isCompound } from '../engine/time';
 import { renderPattern, starterPatterns, cajonLowFirst } from '../engine/patterns';
-import { AppState, Song, SetList, defaultSong, defaultClick, rigPads, rigColor, isCajonLow, RIG_PAGES, RIG_KIT } from './model';
+import { AppState, Song, SetList, defaultSong, defaultClick, rigPads, rigColor, isCajonLow, rigScenes, RIG_PAGES, RIG_KIT } from './model';
 
 interface SeedSong { name: string; key: string; bpm: number; ts?: TimeSig; tempoCount?: TempoCount }
 interface Seed { id: string; name: string; songs: SeedSong[] }
@@ -74,6 +74,8 @@ const PATCHES: Array<{ id: string; run: (state: AppState) => void }> = [
   { id: 'patch-5-click-eighths-compound', run: st => { for (const s of st.songs) if (isCompound(s.ts) && s.click.sub === 'off') s.click = { ...s.click, sub: '8' }; } },
   // Deliverance joins the end of the acoustic set
   { id: 'patch-6-add-deliverance', run: st => appendSeedSong(st, 'set-2026-11-acoustic', 8) },
+  // songs on the default layout that were saved before scenes existed get the starter scenes
+  { id: 'patch-7-starter-scenes', run: st => { for (const s of st.songs) if (s.kit === RIG_KIT && s.scenes === undefined) s.scenes = rigScenes(); } },
 ];
 /** Apply the one-time changes this state has not had. Returns true when any ran. */
 export function applyPatches(state: AppState): boolean {

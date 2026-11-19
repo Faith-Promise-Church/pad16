@@ -64,6 +64,21 @@ test('an exclusive group swaps loops on the same boundary', async () => {
   expect(r.after).toBeGreaterThan(1800); expect(r.after).toBeLessThan(2200);       // 1000 Hz tone
   expect(r.finalA).toBe('stopped'); expect(r.finalB).toBe('playing');
 });
+test('a scene starts, stops and keeps pads on one bar line', async () => {
+  const r = await H<any>('scene');
+  expect(r.empty).toBe(-1); expect(r.stayedStopped).toBe(true);                    // an empty scene does not start a stopped transport
+  expect(r.b1).toBe(0); expect(r.running).toBe(true);
+  expect(r.b2).toBe(8);                                                             // launched in bar 2 at 120: lands on beat 8
+  expect(r.states).toEqual(['stopping', 'playing', 'queued']);
+  expect(r.sounding).toEqual([1, 2]);
+  expect(r.tickErr).toBeGreaterThanOrEqual(0); expect(r.tickErr).toBeLessThanOrEqual(3);   // the new loop starts on the bar line (the tick takes two samples to rise past the measuring threshold)
+  expect(r.low[0]).toBeGreaterThan(0.05); expect(r.low[1]).toBeLessThan(0.002);     // the loop left out of the scene ends there
+  expect(r.kept[1]).toBeGreaterThan(r.kept[0] * 0.95); expect(r.kept[2]).toBeGreaterThan(r.kept[0] * 0.95);   // the shared loop never dips
+  expect(r.mid).toEqual(['stopped', 'playing', 'playing']);
+  expect(r.b3).toBe(16); expect(r.shotErr).toBeGreaterThanOrEqual(0); expect(r.shotErr).toBeLessThanOrEqual(3);        // a one shot in a scene fires on its bar line
+  expect(r.afterAll[0]).toBeLessThan(0.002); expect(r.afterAll[1]).toBeLessThan(0.002);
+  expect(r.final).toEqual(['stopped', 'stopped', 'stopped']); expect(r.stillRunning).toBe(true);
+});
 test('a pattern pad plays its steps on the grid', async () => {
   const r = await H<any>('pattern');
   expect(r.count).toBe(8); expect(r.worstMs).toBeLessThan(1);

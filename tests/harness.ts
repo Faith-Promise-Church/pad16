@@ -132,6 +132,41 @@ const H = {
     const boundary = t0 + 4;      // bar 2 at 120
     return { states, before: rate(boundary - 0.05), after: rate(boundary + 0.03), finalA: eng.pads.view(0).state, finalB: eng.pads.view(1).state };
   },
+  /** Scenes: scene 1 (a 200 Hz loop and a 1000 Hz loop) starts the transport; scene 2 (the 1000 Hz loop and a tick loop) is launched mid-bar.
+   *  On the next bar line the 200 Hz loop must end, the tick loop must start, and the 1000 Hz loop must carry on untouched. Then an empty scene stops the rest. */
+  async scene() {
+    const { ctx, eng } = offline(12, 120);
+    const sine = (f: number) => { const d = new Float32Array(2 * SR); for (let i = 0; i < d.length; i++) d[i] = 0.2 * Math.sin((2 * Math.PI * f * i) / SR); return eng.toBuffer([d], SR); };
+    eng.pads.setPad(0, loopPad({ group: 'A' }), sine(200));
+    eng.pads.setPad(1, loopPad({}), sine(1000));
+    eng.pads.setPad(2, loopPad({ group: 'A' }), tickLoop(eng, 120, 4));
+    eng.pads.setPad(3, { ...defaultPad(3), mode: 'oneshot' }, tickLoop(eng, 600, 1));
+    const empty = eng.pads.launchScene([]);                 // stopped, nothing to play: the transport stays stopped
+    const stayedStopped = !eng.transport.running;
+    const b1 = eng.pads.launchScene([0, 1]);
+    const t0 = eng.clock.timeAt(0), running = eng.transport.running;
+    eng.scheduler.advanceTo(2.6); eng.virtualNow = 2.6;
+    const b2 = eng.pads.launchScene([1, 2]);
+    const states = [0, 1, 2].map(i => eng.pads.view(i).state), sounding = eng.pads.sounding();
+    for (let t = 2.6; t < 6.6; t += 0.1) { eng.virtualNow = t; eng.scheduler.advanceTo(t + 0.12); }
+    eng.virtualNow = 6.6;
+    const mid = [0, 1, 2].map(i => eng.pads.view(i).state);
+    const b3 = eng.pads.launchScene([3]);                   // a one shot alone: every loop stops, the one shot fires on the bar line
+    for (let t = 6.6; t < 11.9; t += 0.1) { eng.virtualNow = t; eng.scheduler.advanceTo(t + 0.12); }
+    const x = (await ctx.startRendering()).getChannelData(0);
+    const tone = (f: number, from: number, to: number) => { let re = 0, im = 0; const a = Math.round(from * SR), b = Math.round(to * SR); for (let i = a; i < b; i++) { const w = (2 * Math.PI * f * i) / SR; re += x[i] * Math.cos(w); im += x[i] * Math.sin(w); } return (2 * Math.hypot(re, im)) / (b - a); };
+    const firstOver = (thr: number, from: number) => { for (let i = Math.round(from * SR); i < x.length; i++) if (Math.abs(x[i]) > thr) return i / SR; return -1; };
+    const bar2 = eng.clock.timeAt(b2), bar3 = eng.clock.timeAt(b3);
+    return {
+      empty, stayedStopped, b1, running, b2, b3, states, sounding, mid,
+      tickErr: Math.round((firstOver(0.35, bar2 - 0.2) - bar2) * SR),
+      low: [tone(200, bar2 - 0.4, bar2 - 0.1), tone(200, bar2 + 0.1, bar2 + 0.4)],
+      kept: [tone(1000, bar2 - 0.4, bar2 - 0.1), tone(1000, bar2 + 0.1, bar2 + 0.4), tone(1000, bar2 - 0.05, bar2 + 0.05)],
+      shotErr: Math.round((firstOver(0.35, bar3 - 0.01) - bar3) * SR),
+      afterAll: [tone(1000, bar3 + 0.1, bar3 + 0.4), tone(200, bar3 + 0.1, bar3 + 0.4)],
+      final: [0, 1, 2].map(i => eng.pads.view(i).state), stillRunning: eng.transport.running, t0,
+    };
+  },
   /** A starter pattern on a pad: hit times of the first bar against the grid. */
   async pattern() {
     const { ctx, eng } = offline(5, 120);

@@ -42,7 +42,20 @@ export interface Song {
   /** Names for the two pad pages. */
   pageNames?: string[];
   click: ClickSettings; sub: SubSettings; tonic: TonicSettings; notes: string;
+  /** Up to eight scenes, in the order they show. Unset on songs saved before scenes existed. */
+  scenes?: Scene[];
 }
+/** A scene is a named set of pads that should be sounding: launching it starts the ones that are not and stops the loops that are not in it,
+ *  all on the same bar line. One shots in a scene fire once on that bar line. Ambient, bass and click can be switched with it, or left alone. */
+export interface Scene {
+  id: string; name: string; color?: PadColor;
+  /** Pad indices (real pads, never linked slots). */
+  pads: number[];
+  /** true switches it on with the scene, false switches it off, unset leaves it as it is. */
+  tonic?: boolean; sub?: boolean; click?: boolean;
+}
+export const MAX_SCENES = 8;
+export const SCENE_NAMES = ['Intro', 'Verse', 'Pre', 'Chorus', 'Bridge', 'Tag', 'Build', 'Down', 'Outro'];
 export interface SetList { id: string; name: string; songIds: string[] }
 
 export type BusId = 'drums' | 'loops' | 'click' | 'pad' | 'sub';
@@ -55,10 +68,13 @@ export interface Routing {
   buses: Record<BusId, BusState>;
 }
 export interface MidiBinding { kind: 'cc' | 'note' | 'pc'; ch: number; num: number }
-export type MidiAction = 'nextSong' | 'prevSong' | 'startStop' | 'tap' | 'clickToggle' | 'panic' | 'tonicToggle' | 'subToggle' | 'padPage';
+export type SceneAction = 'scene1' | 'scene2' | 'scene3' | 'scene4' | 'scene5' | 'scene6' | 'scene7' | 'scene8';
+export type MidiAction = 'nextSong' | 'prevSong' | 'startStop' | 'tap' | 'clickToggle' | 'panic' | 'tonicToggle' | 'subToggle' | 'padPage' | 'nextScene' | 'prevScene' | SceneAction;
 export const MIDI_ACTIONS: Record<MidiAction, string> = {
   nextSong: 'Next song', prevSong: 'Previous song', startStop: 'Start and stop', tap: 'Tap tempo',
-  clickToggle: 'Click on and off', panic: 'Panic', tonicToggle: 'Tonic pad on and off', subToggle: 'Sub synth on and off', padPage: 'Switch pad page',
+  clickToggle: 'Click on and off', panic: 'Panic', tonicToggle: 'Ambient pad on and off', subToggle: 'Bass on and off', padPage: 'Switch pad page',
+  nextScene: 'Next scene', prevScene: 'Previous scene',
+  scene1: 'Scene 1', scene2: 'Scene 2', scene3: 'Scene 3', scene4: 'Scene 4', scene5: 'Scene 5', scene6: 'Scene 6', scene7: 'Scene 7', scene8: 'Scene 8',
 };
 export interface MidiSettings {
   disabled: Record<string, boolean>; lastBle: string; clockOut: boolean; startStop: boolean;
@@ -69,9 +85,15 @@ export interface Settings {
   theme: 'dark' | 'light'; editLock: boolean; edit: boolean; countInOnPadLaunch: boolean;
   routingByDevice: Record<string, Routing>; midi: MidiSettings; cueOffsetMs: number; clickBackend: 'auto' | 'web' | 'native';
   pedalKeys: boolean;
+  /** What a page-turner pedal (arrow and page keys) steps through. */
+  pedalMode: 'song' | 'scene';
+  /** The Edit destination last open. */
+  dest: EditDest;
   /** Which click sound to use: 'builtin', the name of a click set from kits/, or '' for the default (a click set when one exists). */
   clickSound: string;
 }
+export type EditDest = 'pads' | 'loops' | 'song' | 'mix' | 'setup';
+export const EDIT_DESTS: Array<{ id: EditDest; label: string }> = [{ id: 'pads', label: 'Pads' }, { id: 'loops', label: 'Loops' }, { id: 'song', label: 'Song' }, { id: 'mix', label: 'Mix' }, { id: 'setup', label: 'Setup' }];
 export interface AppState {
   schema: 2; songs: Song[]; sets: SetList[]; currentSet: string; currentSong: string; patterns: Pattern[]; settings: Settings;
   /** Ready-made sets that have been added once already (see seeds.ts). Deleting one keeps it deleted. */
@@ -147,6 +169,24 @@ export function padTarget(pads: PadConfig[], i: number): number {
   const l = pads[i]?.link;
   return typeof l === 'number' && l >= 0 && l < pads.length && l !== i && pads[l].link === undefined ? l : i;
 }
+/** Starter scenes for the default layout, the same pad slots in 4/4 and in 6/8: 1 shaker, 2 tambourine, 5 cajon groove, 9 cajon on 1, 15 kick build.
+ *  They are a starting point to rename and rebuild. */
+export function rigScenes(): Scene[] {
+  const mk = (name: string, color: PadColor, pads: number[]): Scene => ({ id: uid(), name, color, pads });
+  return [mk('Intro', 'sage', [0]), mk('Verse', 'sand', [0, 8]), mk('Chorus', 'clay', [0, 1, 4]), mk('Build', 'plum', [0, 1, 14]), mk('Down', 'stone', [])];
+}
+/** Clean up scenes from a saved song or an import: at most eight, known pads only, each pad once. */
+export function normalizeScenes(raw: any, pads: PadConfig[]): Scene[] {
+  if (!Array.isArray(raw)) return [];
+  const tri = (v: any) => (v === true || v === false ? v : undefined);
+  return raw.filter(x => x && typeof x === 'object').slice(0, MAX_SCENES).map((x: any): Scene => {
+    const list = Array.isArray(x.pads) ? x.pads.map((n: any) => Math.floor(Number(n))).filter((n: number) => n >= 0 && n < pads.length).map((n: number) => padTarget(pads, n)) : [];
+    const sc: Scene = { id: String(x.id || uid()), name: String(x.name ?? '').slice(0, 24), pads: [...new Set<number>(list)].sort((a, b) => a - b) };
+    if (PAD_COLORS.includes(x.color)) sc.color = x.color;
+    for (const k of ['tonic', 'sub', 'click'] as const) { const v = tri(x[k]); if (v !== undefined) sc[k] = v; }
+    return sc;
+  });
+}
 export const defaultClick = (): ClickSettings => ({ on: false, sub: 'off', accent: 1, beat: 0.8, subLevel: 0.5, countIn: 0, samples: {} });
 export const defaultSub = (): SubSettings => ({
   on: false, preset: 'Pure Sub', params: { ...SUB_PRESETS['Pure Sub'] }, lo: 21, hi: 47, level: 0.8, pedal: true, cc1: 'cutoff', cc11: 'level', bend: 'pitch',
@@ -161,10 +201,10 @@ export const defaultRouting = (): Routing => ({
 });
 export const defaultSong = (name = 'New song'): Song => ({
   id: uid(), name, bpm: 80, ts: { num: 4, den: 4 }, key: 0, kit: RIG_KIT, pads: rigPads(), pageNames: [...RIG_PAGES],
-  quantize: 'bar', click: { ...defaultClick(), sub: '8' }, sub: defaultSub(), tonic: defaultTonic(), notes: '',
+  quantize: 'bar', click: { ...defaultClick(), sub: '8' }, sub: defaultSub(), tonic: defaultTonic(), notes: '', scenes: rigScenes(),
 });
 export const defaultSettings = (): Settings => ({
-  theme: 'dark', editLock: false, edit: false, countInOnPadLaunch: false, routingByDevice: {}, cueOffsetMs: 0, clickBackend: 'auto', pedalKeys: true, clickSound: '',
+  theme: 'dark', editLock: false, edit: false, countInOnPadLaunch: false, routingByDevice: {}, cueOffsetMs: 0, clickBackend: 'auto', pedalKeys: true, pedalMode: 'song', dest: 'pads', clickSound: '',
   midi: { disabled: {}, lastBle: '', clockOut: true, startStop: false, clockOffset: {}, clockMode: 'auto', channel: 0, padZone: { on: false, low: 48 }, programChange: false, maps: {} },
 });
 export function defaultState(): AppState {
@@ -204,6 +244,8 @@ export function normalizeSong(s: any, ds = defaultSong()): Song {
     click: { ...ds.click, ...(s.click || {}), samples: { ...(s.click?.samples || {}) } },
     sub: { ...ds.sub, ...(s.sub || {}), params: { ...ds.sub.params, ...(s.sub?.params || {}) } },
     tonic: { ...ds.tonic, ...(s.tonic || {}) },
+    // a song saved before scenes existed has none; the starter scenes reach it once, through a patch (see seeds.ts)
+    ...(Array.isArray(s.scenes) ? { scenes: normalizeScenes(s.scenes, pads) } : { scenes: undefined }),
   };
 }
 export function normalizeRouting(r: any): Routing {
