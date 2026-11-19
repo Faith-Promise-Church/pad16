@@ -32,14 +32,23 @@
   --tint-pad: 20%;
   --tint-pad-edge: 50%;
   --tint-swatch: 70%;
+  /* a pad that is sounding lights up in its own color; green (the state color) stays on its edge and its ring */
+  --tint-pad-lit: 34%;
+  /* depth: a soft top light on pads and a glow around what is sounding. Kept low so the surface stays matte. */
+  --sheen: 5%;
+  --glow: 30%;
+  --shade: rgba(0, 0, 0, 0.35);
 
-  /* type: one family. DIN ships only in the iOS build; the web build falls back to Barlow. */
-  --font: "DIN", "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* type: one family, Barlow (SIL Open Font License), bundled with every build. */
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   --w-light: 300;
   --w-regular: 400;
   --w-medium: 500;
+  --w-semi: 600;
   --w-bold: 700;
-  --fs-bpm: 60px;
+  --fs-bpm: 64px;
+  --fs-bpm-s: 44px;    /* the tempo where the bar is three rows */
+  --fs-scene: 20px;
   --fs-barbeat: 28px;
   --fs-title: 22px;
   --fs-pad: 17px;
@@ -54,10 +63,16 @@
   --outline: 2px;
   --touch: 48px;
   --touch-min: 44px;   /* the smallest a control may be, used where a phone row has to fit */
-  --h-transport: 72px;
-  --h-strip: 96px;
+  --h-bar: 88px;
+  --h-scene: 64px;
+  --h-scene-s: 48px;
   --h-tabs: 56px;
-  --w-rail: 400px;
+  --w-rail: 340px;
+  --w-nav: 208px;
+  --w-pane: 760px;
+  --ring: 26px;
+  --ring-w: 4px;
+  --dot: 12px;
   --w-sheet: 720px;
   --w-sheet-wide: 1240px;
   --w-fader: 48px;
@@ -69,8 +84,8 @@
   --light: 20px;
 
   /* shape and motion */
-  --r-pad: 12px;
-  --r-ctl: 8px;
+  --r-pad: 14px;
+  --r-ctl: 10px;
   --r-pill: 999px;
   --dur: 120ms;
   --ease: ease;
@@ -105,6 +120,10 @@
   --pad-sage: #4E7A48;
   --pad-stone: #666C75;
   --tint-pad: 22%;
+  --tint-pad-lit: 26%;
+  --sheen: 0%;
+  --glow: 22%;
+  --shade: rgba(11, 12, 14, 0.12);
 }
 
 /* iPhone: one step down the scale. Nothing goes under 12 px. */
@@ -115,8 +134,13 @@
     --fs-title: 20px;
     --fs-pad: 14px;
     --fs-value: 16px;
-    --h-transport: 64px;
+    --fs-scene: 16px;
+    --h-bar: 64px;
+    --h-scene: 48px;
     --h-fader: 144px;
+    --ring: 20px;
+    --ring-w: 3px;
+    --dot: 10px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

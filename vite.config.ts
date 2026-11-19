@@ -4,9 +4,10 @@ import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
 const root = import.meta.dirname;
-// DIN is a commercial font kept out of the repo in fonts-private/. It is bundled only for the iOS build.
+// Every build uses Barlow (SIL Open Font License). DIN is a commercial font and needs an app-embedding license from its foundry:
+// it is bundled only when asked for with PAD16_DIN=1, in the iOS build, from the untracked fonts-private/ folder.
 const ios = process.env.PAD16_TARGET === 'ios';
-const din = ios && existsSync(resolve(root, 'fonts-private/DIN-Regular.otf'));
+const din = ios && process.env.PAD16_DIN === '1' && existsSync(resolve(root, 'fonts-private/DIN-Regular.otf'));
 
 // kits/ stays at the repo root (drop a folder and push); the build copies it beside the app
 const copyKits = { name: 'pad16-copy-kits', closeBundle() { if (existsSync(resolve(root, 'kits'))) cpSync(resolve(root, 'kits'), resolve(root, 'dist/kits'), { recursive: true }); } };

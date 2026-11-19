@@ -1,4 +1,5 @@
 // Smoke tests at iPad portrait, iPad landscape and large iPhone sizes: load, unlock audio, trigger pads, queue and launch a loop.
+// Then Perform and Edit: the layout on every screen shape, scenes, stage lock, and the five Edit destinations.
 import { test, expect, Page } from '@playwright/test';
 
 const SIZES = [{ name: 'ipad-portrait', width: 1024, height: 1366 }, { name: 'ipad-landscape', width: 1366, height: 1024 }, { name: 'iphone', width: 430, height: 932 }];
@@ -80,21 +81,24 @@ for (const size of SIZES) {
 }
 
 test.describe('phone layout', () => {
-  test.use({ viewport: { width: 393, height: 660 }, hasTouch: true });
-  test('three rows up top, a small page switch, and pads wide enough to read their names', async ({ page }) => {
+  test.use({ viewport: { width: 393, height: 852 }, hasTouch: true });
+  test('Perform on a phone: three bar rows, a small page switch, and pads wide enough to read their names', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('html[data-ready="true"]');
     const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
-    // tempo row holds the time signature; tools row holds the page switch; then the song row. Nothing wraps to a fourth row.
-    const [run, ts, sw, panic, song, bar] = [await box('.run-btn'), await box('.ts-btn'), await box('.pages.compact'), await box('.transport .t-tool >> nth=-1'), await box('.song-block'), await box('.transport')];
-    expect(Math.abs(ts.y - run.y)).toBeLessThan(4);
+    // tempo row, then beat, click, page switch and tools, then the song row. Nothing wraps to a fourth row.
+    const [run, tap, sw, panic, song, bar] = [await box('.run-btn'), await box('.tap-btn'), await box('.pages.compact'), await box('.panic-btn'), await box('.song-btn'), await box('.perform-bar')];
+    expect(Math.abs(tap.y + tap.height / 2 - run.y - run.height / 2)).toBeLessThan(4);
     expect(Math.abs(panic.y - sw.y)).toBeLessThan(6); expect(sw.y).toBeGreaterThan(run.y + 40);
     expect(song.y).toBeGreaterThan(sw.y + 40); expect(bar.height).toBeLessThan(190);
     expect(panic.x + panic.width).toBeLessThanOrEqual(393); expect(sw.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('.grid-col .pages')).toBeHidden();
-    // the grid takes the full width and the tab bar sits on the bottom edge
-    const grid = await box('.grid'), tabs = await box('.tabs');
-    expect(grid.width).toBeGreaterThan(370); expect(Math.round(tabs.y + tabs.height)).toBe(660);
+    // one screen holds the set: scenes over the pads, Ambient and Bass under them, and the grid takes the full width
+    const [grid, scenes, strips] = [await box('.grid'), await box('.scenes'), await box('.strips')];
+    expect(grid.width).toBeGreaterThan(370);
+    expect(scenes.y + scenes.height).toBeLessThanOrEqual(grid.y + 1); expect(strips.y).toBeGreaterThanOrEqual(grid.y + grid.height - 1);
+    expect(Math.round(strips.y + strips.height)).toBeLessThanOrEqual(852);
+    await expect(page.locator('.editor')).toBeHidden(); await expect(page.locator('.dest-tabs.bottom')).toBeHidden();
     // every pad name shows in full, on whole words
     const names = await page.locator('.pad-name').evaluateAll(els => els.map(e => ({ t: e.textContent, cut: e.scrollHeight > e.clientHeight + 1, w: (e as HTMLElement).clientWidth })));
     expect(names.filter(n => n.cut).map(n => n.t)).toEqual([]);
@@ -106,29 +110,109 @@ test.describe('phone layout', () => {
     await expect(page.locator('.pages.compact .page-tab').nth(1)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.pages.compact .page-tab').nth(0)).toHaveAttribute('data-busy', 'true', { timeout: 6000 });
     await page.screenshot({ path: 'test-results/phone-layout.png' });
-    // the click menu on a phone: press and hold the Click button (a short tap still just switches the click)
-    const click = page.locator('.transport .toggle');
+    // the click button only switches the click: Perform opens no menus
+    const click = page.locator('.perform-bar .click-toggle'), was = await app<boolean>(page, 'a => a.song.click.on');
     await click.tap();
-    expect(await app(page, 'a => a.song.click.on')).toBe(true);
-    const cb = (await click.boundingBox())!;
-    await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2); await page.mouse.down(); await page.waitForTimeout(750); await page.mouse.up();
-    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
-    expect(await app(page, 'a => a.song.click.on')).toBe(true);                       // holding did not switch it
-    await expect(page.locator('.sheet[aria-label="Click"] .seg-btn[aria-pressed="true"]', { hasText: 'Eighths' })).toBeVisible();
-    await page.locator('.sheet[aria-label="Click"] .btn[title="Close"]').tap();
-    await click.tap();
-    expect(await app(page, 'a => a.song.click.on')).toBe(false);                      // and the next tap works as usual
-    // it is also in the Song tab and in the tempo sheet
-    await page.locator('.tabs button', { hasText: 'Song' }).tap();
-    await page.locator('.panel-song .btn', { hasText: 'Click settings' }).tap();
-    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
-    await page.locator('.sheet[aria-label="Click"] .btn[title="Close"]').tap();
-    await page.locator('.bpm-btn').tap();
-    await page.locator('.sheet[aria-label="Tempo and meter"] .btn', { hasText: 'Click settings' }).tap();
-    await expect(page.locator('.sheet[aria-label="Click"]')).toBeVisible();
-    await expect(page.locator('.sheet[aria-label="Tempo and meter"]')).toHaveCount(0);
+    expect(await app(page, 'a => a.song.click.on')).toBe(!was);
+    await expect(page.locator('.sheet')).toHaveCount(0);
+    // tempo: one beat a press
+    const bpm = await app<number>(page, 'a => a.song.bpm');
+    await page.locator('[title="Tempo up 1"]').tap(); await page.locator('[title="Tempo up 1"]').tap(); await page.locator('[title="Tempo down 1"]').tap();
+    expect(await app(page, 'a => a.song.bpm')).toBe(bpm + 1);
+    // Edit on a phone: the five destinations run along the bottom edge, and click settings live in Song
+    await page.locator('.edit-btn').tap();
+    await expect(page.locator('#app')).toHaveAttribute('data-mode', 'edit');
+    const tabs = await box('.dest-tabs.bottom');
+    expect(Math.round(tabs.y + tabs.height)).toBe(852);
+    await expect(page.locator('.dest-tabs.bottom .dest-tab')).toHaveText(['Pads', 'Loops', 'Song', 'Mix', 'Setup']);
+    await expect(page.locator('.scenes')).toBeHidden(); await expect(page.locator('.strips')).toBeHidden();
+    await page.locator('.dest-tabs.bottom .dest-tab', { hasText: 'Song' }).tap();
+    await page.locator('.sec-tab', { hasText: 'Tempo and click' }).tap();
+    await expect(page.locator('.dest-pane[data-dest="song"] .seg-btn[aria-pressed="true"]', { hasText: 'Eighths' })).toBeVisible();
+    await page.locator('.perform-btn').tap();
+    await expect(page.locator('#app')).toHaveAttribute('data-mode', 'perform');
+    await expect(page.locator('.dest-host')).toBeHidden();
   });
 });
+
+/* Every screen the app is built for: the controls a set needs are all on screen, none overlap, and every target is big enough to hit. */
+const SCREENS = [
+  { name: 'iPad 13 landscape', width: 1366, height: 1024, tier: 'expanded', arr: 'side', bar: '1', strips: 'upright', pad: 180 },
+  { name: 'iPad 13 portrait', width: 1024, height: 1366, tier: 'expanded', arr: 'stack', bar: '2', strips: 'wide', pad: 180 },
+  { name: 'iPad 11 landscape', width: 1194, height: 834, tier: 'expanded', arr: 'side', bar: '1', strips: 'upright', pad: 140 },
+  { name: 'iPad mini portrait', width: 744, height: 1133, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 130 },
+  { name: 'folding phone open, landscape', width: 951, height: 669, tier: 'medium', arr: 'side', bar: '3', strips: 'rows', pad: 120 },
+  { name: 'folding phone open, portrait', width: 669, height: 951, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 120 },
+  { name: 'iPad half-screen window', width: 678, height: 1024, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 120 },
+  { name: 'large phone', width: 440, height: 956, tier: 'compact', arr: 'stack', bar: '3', strips: 'rows', pad: 96 },
+  { name: 'phone', width: 393, height: 852, tier: 'compact', arr: 'stack', bar: '3', strips: 'rows', pad: 88 },
+  { name: 'phone in a browser, short', width: 393, height: 660, tier: 'compact', arr: 'stack', bar: '3', strips: 'pair', pad: 64 },
+  { name: 'phone on its side', width: 852, height: 393, tier: 'compact', arr: 'side', bar: '3', strips: 'pair', pad: 84 },
+];
+for (const sc of SCREENS) {
+  test.describe(`layout: ${sc.name}`, () => {
+    test.use({ viewport: { width: sc.width, height: sc.height }, hasTouch: true });
+    test('Perform fits with nothing cut off, and Edit shows each destination', async ({ page }) => {
+      await page.goto('/');
+      await page.waitForSelector('html[data-ready="true"]');
+      const root = page.locator('#app');
+      await expect(root).toHaveAttribute('data-mode', 'perform');
+      for (const [k, v] of [['tier', sc.tier], ['arr', sc.arr], ['bar', sc.bar], ['strips', sc.strips]]) await expect(root).toHaveAttribute('data-' + k, v);
+      // eight scenes is the most a song can hold: the worst case for room
+      await app(page, `a => { a.patchSong({ scenes: Array.from({ length: 8 }, (_, n) => ({ id: 's' + n, name: ['Intro', 'Verse', 'Pre', 'Chorus', 'Bridge', 'Tag', 'Build', 'Outro'][n], pads: [n] })) }); }`);
+      await expect(page.locator('.scene')).toHaveCount(8);
+      const report = await page.evaluate(() => {
+        const W = innerWidth, H = innerHeight, bad: string[] = [];
+        const seen = (e: Element) => (e as HTMLElement).offsetParent !== null && getComputedStyle(e).visibility !== 'hidden';
+        const r = (e: Element) => e.getBoundingClientRect();
+        const name = (e: Element) => `${e.className} "${(e.getAttribute('title') || e.textContent || '').trim().slice(0, 24)}"`;
+        // every live control is wholly on screen and at least 44 px on its short side
+        const controls = [...document.querySelectorAll('.perform-bar button, .perform-bar [role="switch"], .scene, .pad, .strips button, .strips [role="switch"], .strips .fader-track')].filter(seen);
+        for (const e of controls) {
+          const b = r(e);
+          if (b.left < -0.5 || b.top < -0.5 || b.right > W + 0.5 || b.bottom > H + 0.5) bad.push('off screen: ' + name(e));
+          if (Math.min(b.width, b.height) < 43.5 && !e.classList.contains('fader-track')) bad.push(`small (${Math.round(b.width)}x${Math.round(b.height)}): ` + name(e));
+        }
+        // no two controls share space
+        const boxes = controls.filter(e => !e.closest('.pages.compact') || e.classList.contains('page-tab')).map(e => ({ e, b: r(e) }));
+        for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+          const a = boxes[i], c = boxes[j];
+          if (a.e.contains(c.e) || c.e.contains(a.e)) continue;
+          const ox = Math.min(a.b.right, c.b.right) - Math.max(a.b.left, c.b.left), oy = Math.min(a.b.bottom, c.b.bottom) - Math.max(a.b.top, c.b.top);
+          if (ox > 1 && oy > 1) bad.push('overlap: ' + name(a.e) + ' and ' + name(c.e));
+        }
+        // the four regions do not run into each other, and the page does not scroll
+        const parts = ['.perform-bar', '.scenes', '.grid', '.strips'].map(s => ({ s, b: r(document.querySelector(s)!) }));
+        for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+          const a = parts[i].b, c = parts[j].b;
+          if (Math.min(a.right, c.right) - Math.max(a.left, c.left) > 1 && Math.min(a.bottom, c.bottom) - Math.max(a.top, c.top) > 1) bad.push('regions overlap: ' + parts[i].s + ' and ' + parts[j].s);
+        }
+        if (document.documentElement.scrollWidth > W + 1 || document.documentElement.scrollHeight > H + 1) bad.push('the page scrolls');
+        // text that must be readable is not clipped
+        for (const e of document.querySelectorAll('.bpm-num, .barbeat-num')) if (seen(e) && (e.scrollWidth > e.clientWidth + 1)) bad.push('clipped: ' + name(e));
+        const pad = r(document.querySelector('.pad')!);
+        return { bad, pad: Math.round(Math.min(pad.width, pad.height)), square: Math.abs(pad.width - pad.height) < 2 };
+      });
+      expect(report.bad).toEqual([]);
+      expect(report.square).toBe(true);
+      expect(report.pad).toBeGreaterThanOrEqual(sc.pad);
+      // Edit: each destination shows its own content and hides the rest; nothing leaves the screen sideways
+      await page.locator('.edit-btn').tap();
+      await expect(root).toHaveAttribute('data-mode', 'edit');
+      const tabs = page.locator(sc.width >= 900 || sc.height < 500 ? '.dest-tabs.in-bar' : '.dest-tabs.bottom');
+      await expect(tabs.locator('.dest-tab')).toHaveCount(5);
+      for (const dest of ['loops', 'song', 'mix', 'setup', 'pads']) {
+        await tabs.locator(`.dest-tab[data-dest="${dest}"]`).tap();
+        await expect(root).toHaveAttribute('data-dest', dest);
+        if (dest === 'pads') { await expect(page.locator('.editor')).toBeVisible(); await expect(page.locator('.grid')).toBeVisible(); await expect(page.locator('.dest-host')).toBeHidden(); }
+        else { await expect(page.locator(`.dest-pane[data-dest="${dest}"]`)).toBeVisible(); await expect(page.locator('.dest-pane:visible')).toHaveCount(1); await expect(page.locator('.editor')).toBeHidden(); }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && [...document.querySelectorAll('.edit-bar button')].every(b => (b as HTMLElement).offsetParent === null || (b.getBoundingClientRect().right <= innerWidth + 0.5 && b.getBoundingClientRect().left >= -0.5)))).toBe(true);
+      }
+      await page.locator('.perform-btn').tap();
+      await expect(root).toHaveAttribute('data-mode', 'perform');
+    });
+  });
+}
 
 test.describe('a first open on a bad connection', () => {
   test.use({ viewport: { width: 393, height: 700 }, hasTouch: true });
@@ -184,18 +268,18 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(13)).toHaveAttribute('data-state', 'stopped');
     await app(page, 'a => a.patchSong({ sub: { ...a.song.sub, on: true } })');
     await app(page, 'a => a.eng.sub.noteOn(33)');
-    await page.locator('[title="Panic: stop everything"]').tap();
+    await page.locator('.perform-bar .panic-btn').tap();
     await expect(page.locator('.run-btn')).toHaveAttribute('data-running', 'false');
     await expect(page.locator('.pad').nth(5)).toHaveAttribute('data-state', 'stopped');
     expect(await app(page, 'a => a.eng.sub.currentNote')).toBeNull();
   });
   test('the sub synth plays the lowest key and the tonic pad fades in and changes key', async ({ page }) => {
-    await page.locator('.rail .sub-card .toggle').tap();
+    await page.locator('.strip-bass .toggle').tap();
     await app(page, 'a => { a.eng.sub.noteOn(40); a.eng.sub.noteOn(33); }');
-    await expect(page.locator('.rail .sub-card .note-read')).toHaveText('A1');
+    await expect(page.locator('.strip-bass .note-read')).toHaveText('A1');
     await expect.poll(() => app(page, 'a => a.eng.mixer.level("sub") > 0.02'), { timeout: 3000 }).toBe(true);
     await app(page, 'a => { a.eng.sub.noteOff(33); }');
-    await expect(page.locator('.rail .sub-card .note-read')).toHaveText('E2');
+    await expect(page.locator('.strip-bass .note-read')).toHaveText('E2');
     await app(page, 'a => a.eng.sub.noteOff(40)');
     await app(page, 'a => a.patchSong({ tonic: { ...a.song.tonic, on: true, fadeIn: 0.3, xfade: 2 } })');
     await expect.poll(() => app(page, 'a => a.eng.tonic.status'), { timeout: 15000 }).toBe('on');
@@ -205,7 +289,7 @@ test.describe('stage behavior', () => {
     await app(page, 'a => a.patchSong({ key: 6 })');
     expect(await app(page, 'a => a.eng.tonic.pick(6)')).toMatchObject({ file: 'Pad Gb.mp3', shift: 0 });
     await expect.poll(() => app(page, 'a => a.eng.tonic.key === 6 && a.eng.tonic.status'), { timeout: 15000 }).toBe('on');
-    await expect(page.locator('.rail .tonic-card .card-status')).toHaveText('');
+    await expect(page.locator('.strip-amb .card-status')).toHaveText('');
     // the one-minute MP3 loops with no gap at the seam: both ends of the prepared loop carry signal and meet
     const seam = await app<any>(page, `a => { const b = [...a.eng.tonic.cache.values()].pop(), x = b.getChannelData(0), n = x.length, w = Math.round(b.sampleRate * 0.1);
       const rms = (from, to) => { let e = 0; for (let i = from; i < to; i++) e += x[i] * x[i]; return Math.sqrt(e / (to - from)); };
@@ -307,7 +391,7 @@ test.describe('stage behavior', () => {
   });
   test('a shared pad edits on both pages until it is made separate', async ({ page }) => {
     await app(page, 'a => a.loadKit("rig")');
-    await app(page, 'a => { a.state.settings.edit = true; a.setPage(1); a.changed(); }');
+    await app(page, 'a => { a.setEdit(true, "pads"); a.setPage(1); }');
     await page.locator('.pad').nth(1).tap();
     expect(await app(page, 'a => [a.selected, a.selectedVia]')).toEqual([1, 17]);
     await expect(page.locator('.editor .note.shared')).toContainText('same pad as Cajon, pad 2');
@@ -354,7 +438,7 @@ test.describe('stage behavior', () => {
     await expect(page.locator('.pad').nth(8).locator('.pad-name')).toHaveText('Cajon on 1');
     expect(await app(page, 'a => [a.page, a.eng.transport.targetBpm, a.song.pads[0].mode]')).toEqual([0, 74, 'loop']);
     // the set is added once: deleting it sticks
-    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-4-cajon-grooves', 'patch-5-click-eighths-compound', 'patch-6-add-deliverance']);
+    expect(await app(page, 'a => a.state.seeded')).toEqual(['set-2026-11-acoustic', 'patch-1-click-eighths', 'patch-2-cajon-group-b', 'patch-3-pad-colors', 'patch-4-cajon-grooves', 'patch-5-click-eighths-compound', 'patch-6-add-deliverance', 'patch-7-starter-scenes']);
   });
   test('a stretched loop keeps sounding through a tempo change and its next loop point @webkit', async ({ page }) => {
     test.setTimeout(90_000);
@@ -380,7 +464,7 @@ test.describe('stage behavior', () => {
   });
   test('sequencer steps toggle with a tap and take a level from 1 to 8 with a drag', async ({ page }) => {
     await app(page, 'a => a.loadKit("rig")');
-    await app(page, 'a => { a.state.settings.edit = true; a.select(14); a.changed(); }');
+    await app(page, 'a => { a.setEdit(true, "pads"); a.select(14); }');
     await page.locator('.editor .btn', { hasText: 'Edit pattern' }).click();
     const steps = page.locator('.seq-row').first().locator('.step');
     await expect(steps).toHaveCount(16);
@@ -398,7 +482,7 @@ test.describe('stage behavior', () => {
     expect(await app(page, 'a => a.bank.index.clicksets.map(c => c.name)')).toEqual(['Justin Click']);
     expect(await app(page, 'a => a.clickSet.name')).toBe('Justin Click');            // a supplied click wins until told otherwise
     await expect.poll(() => app(page, 'a => !!a.webClick.samples.accent && !!a.webClick.samples.beat && !!a.webClick.samples.sub')).toBe(true);
-    await page.locator('[title="Click settings"]').tap();
+    await app(page, 'a => a.setEdit(true, "setup")');                            // the click sound for every song is a device setting: Setup, Audio
     await page.locator('.seg-btn', { hasText: 'Built-in' }).tap();
     expect(await app(page, 'a => a.clickSet')).toBeNull();
     await expect.poll(() => app(page, 'a => !a.webClick.samples.accent && !a.webClick.samples.sub')).toBe(true);
@@ -416,21 +500,124 @@ test.describe('stage behavior', () => {
     expect(await app(page, 'a => a.bank.index.kits.map(k => [k.name, k.pads.length])')).toEqual([['Acoustic Set', 16], ['Cajon Slaps', 11]]);
     expect(await app(page, 'a => a.realSample({ t: "synth", id: "thick-kick" }).file')).toBe('5 Thick Kick.wav');
   });
-  test('edit lock blocks editing, and the daylight theme applies', async ({ page }) => {
-    await page.locator('[title="Edit pads"]').tap();
-    await expect(page.locator('#app')).toHaveAttribute('data-edit', 'true');
-    await page.locator('[title="Edit lock"]').tap();
-    await expect(page.locator('#app')).toHaveAttribute('data-edit', 'false');
-    await expect(page.locator('[title="Edit pads"]')).toBeDisabled();
+  test('Perform holds only what is played live; stage lock guards Edit; the daylight theme applies', async ({ page }) => {
+    const root = page.locator('#app');
+    await expect(root).toHaveAttribute('data-mode', 'perform');
+    for (const sel of ['.editor', '.dest-host', '.edit-bar', '.dest-tabs.in-bar']) await expect(page.locator(sel)).toBeHidden();
+    for (const sel of ['.run-btn', '.tap-btn', '[title="Tempo down 1"]', '[title="Tempo up 1"]', '.click-toggle', '.scenes', '.grid', '.strip-amb .toggle', '.strip-amb .fader', '.strip-bass .toggle', '.strip-bass .fader', '.panic-btn']) await expect(page.locator(sel).first()).toBeVisible();
+    // a pad tap in Perform plays and never selects
+    await page.locator('.pad').nth(3).tap();
+    await expect(page.locator('.pad.sel')).toHaveCount(0);
+    await page.locator('.edit-btn').tap();
+    await expect(root).toHaveAttribute('data-mode', 'edit');
+    await expect(root).toHaveAttribute('data-edit', 'true');
+    for (const sel of ['.perform-bar', '.scenes', '.strips']) await expect(page.locator(sel)).toBeHidden();
+    await expect(page.locator('.dest-tabs.in-bar .dest-tab')).toHaveText(['Pads', 'Loops', 'Song', 'Mix', 'Setup']);
+    await page.locator('.pad').nth(3).tap();
+    await expect(page.locator('.pad').nth(3)).toHaveClass(/sel/);
+    // each setting has one home: tempo and click with the song, the theme and stage lock with the device
+    await page.locator('.dest-tab[data-dest="song"]').first().tap();
+    await expect(page.locator('.sec-tab')).toHaveText(['Set list', 'This song', 'Tempo and click', 'Scenes', 'Ambient', 'Bass']);
+    await page.locator('.dest-tab[data-dest="setup"]').first().tap();
+    await expect(page.locator('.dest-pane[data-dest="setup"] .sec-tab')).toHaveText(['Audio', 'MIDI', 'Display', 'Backup', 'Diagnostics']);
+    await page.locator('.dest-pane[data-dest="setup"] .sec-tab', { hasText: 'Display' }).tap();
+    await page.locator('.toggle', { hasText: 'Stage lock' }).tap();
+    expect(await app(page, 'a => a.state.settings.editLock')).toBe(true);
+    await page.locator('.perform-btn').tap();
+    await expect(root).toHaveAttribute('data-mode', 'perform');
+    // locked: a tap on Edit stays in Perform, Capture is gone, and a press and hold gets through
+    await page.locator('.edit-btn').tap();
+    await expect(root).toHaveAttribute('data-mode', 'perform');
+    await expect(page.locator('.scene-capture')).toHaveCount(0);
+    const eb = (await page.locator('.edit-btn').boundingBox())!;
+    await page.mouse.move(eb.x + eb.width / 2, eb.y + eb.height / 2); await page.mouse.down(); await page.waitForTimeout(800); await page.mouse.up();
+    await expect(root).toHaveAttribute('data-mode', 'edit');
     await app(page, 'a => { a.state.settings.theme = "light"; a.changed(); }');
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+    // the app always opens in Perform
+    await app(page, 'a => a.flush()'); await page.waitForTimeout(300);
+    await page.reload(); await page.waitForSelector('html[data-ready="true"]');
+    await expect(root).toHaveAttribute('data-mode', 'perform');
   });
-  test('split mode and the diagnostics panel work, and Multi-out is not offered on two channels', async ({ page }) => {
-    await page.locator('[title="Settings"]').tap();
+  test('scenes: a press changes the whole section on the next bar line, and Capture saves what is playing', async ({ page }) => {
+    await app(page, 'a => a.loadKit("rig")');
+    await expect(page.locator('.scene:not(.scene-capture) .scene-name')).toHaveText(['Intro', 'Verse', 'Chorus', 'Build', 'Down']);
+    const scene = (name: string) => page.locator('.scene', { hasText: name });
+    const sounding = () => app<number[]>(page, 'a => a.eng.pads.sounding()');
+    // Chorus from a stop: the transport starts and its three pads come in together
+    await scene('Chorus').tap();
+    await expect(page.locator('.run-btn')).toHaveAttribute('data-running', 'true');
+    await expect(scene('Chorus')).toHaveAttribute('data-look', 'on', { timeout: 5000 });
+    await expect(scene('Chorus').locator('.scene-state')).toHaveText('On');
+    expect(await sounding()).toEqual([0, 1, 4]);
+    for (const n of [0, 1, 4]) await expect(page.locator('.pad').nth(n)).toHaveAttribute('data-state', 'playing');
+    // Verse while Chorus plays: it waits for the bar line, then the shaker carries on, two pads stop and one starts
+    await page.waitForFunction(() => { const a = (window as any).pad16; const b = a.eng.clock.beatAt(a.eng.now()); return b % 4 > 0.4 && b % 4 < 2; });
+    await scene('Verse').tap();
+    await expect(scene('Verse')).toHaveAttribute('data-look', 'queued');
+    await expect(scene('Verse').locator('.scene-state')).toHaveText('Next bar');
+    await expect(page.locator('.pad').nth(8)).toHaveAttribute('data-state', 'queued');
+    await expect(page.locator('.pad').nth(4)).toHaveAttribute('data-state', 'stopping');
+    await expect(page.locator('.pad').nth(0)).toHaveAttribute('data-state', 'playing');
+    await expect(scene('Verse')).toHaveAttribute('data-look', 'on', { timeout: 5000 });
+    expect(await sounding()).toEqual([0, 8]);
+    await expect(scene('Chorus')).toHaveAttribute('data-look', '');
+    // a pad changed by hand: the scene keeps an outline, no longer "on"
+    await page.locator('.pad').nth(1).tap();
+    await expect(page.locator('.pad').nth(1)).toHaveAttribute('data-state', 'playing', { timeout: 5000 });
+    await expect(scene('Verse')).toHaveAttribute('data-look', 'last');
+    // Capture saves that as a sixth scene, named for the next section, and it is on at once
+    await page.locator('.scene-capture').tap();
+    await expect(page.locator('.scene:not(.scene-capture)')).toHaveCount(6);
+    expect(await app(page, 'a => a.scenes[5].pads')).toEqual([0, 1, 8]);
+    await expect(page.locator('.scene:not(.scene-capture)').nth(5)).toHaveAttribute('data-look', 'on');
+    // Shift and a number launches a scene from a keyboard; Down stops every loop and leaves the transport running
+    await page.keyboard.press('Shift+Digit5');
+    await expect(scene('Down')).toHaveAttribute('data-look', 'on', { timeout: 5000 });
+    expect(await sounding()).toEqual([]);
+    await expect(page.locator('.run-btn')).toHaveAttribute('data-running', 'true');
+    // a pedal set to step scenes moves through them in order
+    await app(page, 'a => { a.state.settings.pedalMode = "scene"; a.changed(); }');
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.scene:not(.scene-capture)').nth(5)).toHaveAttribute('data-look', 'on', { timeout: 5000 });
+    await page.keyboard.press('ArrowLeft');
+    await expect(scene('Down')).toHaveAttribute('data-look', 'on', { timeout: 5000 });
+    // panic clears the scene with everything else
+    await page.locator('.perform-bar .panic-btn').tap();
+    await expect(page.locator('.scene[data-look="on"], .scene[data-look="last"], .scene[data-look="queued"]')).toHaveCount(0);
+  });
+  test('scenes are edited in Song, Scenes: rename, color, pads, order, delete, and they come back after a reload', async ({ page }) => {
+    await app(page, 'a => a.loadKit("rig")');
+    await app(page, 'a => a.setEdit(true, "song")');
+    await page.locator('.sec-tab', { hasText: 'Scenes' }).tap();
+    const rows = page.locator('.scene-row');
+    await expect(rows).toHaveCount(5);
+    await rows.nth(1).locator('.song-pick').tap();
+    const sheet = page.locator('#sheet-scene');
+    await expect(sheet).toBeVisible();
+    await sheet.locator('.text-input').fill('Verse 2');
+    await sheet.locator('.text-input').blur();
+    await sheet.locator('.swatch[data-color="teal"]').tap();
+    await sheet.locator('.scene-pad', { hasText: 'Tambo on 4' }).first().tap();
+    expect(await app(page, 'a => [a.scenes[1].name, a.scenes[1].color, a.scenes[1].pads]')).toEqual(['Verse 2', 'teal', [0, 2, 8]]);
+    await sheet.locator('.btn', { hasText: 'Done' }).tap();
+    await expect(rows.nth(1).locator('.row-name')).toContainText('Verse 2');
+    await rows.nth(1).locator('[title="Move Verse 2 up"]').tap();
+    expect(await app(page, 'a => a.scenes.map(s => s.name)')).toEqual(['Verse 2', 'Intro', 'Chorus', 'Build', 'Down']);
+    await rows.nth(4).locator('[title="Delete Down"]').tap();
+    await page.locator('.sheet .btn.danger').tap();
+    await expect(rows).toHaveCount(4);
+    await app(page, 'a => a.flush()'); await page.waitForTimeout(300);
+    await page.reload(); await page.waitForSelector('html[data-ready="true"]');
+    await expect(page.locator('.scene:not(.scene-capture) .scene-name')).toHaveText(['Verse 2', 'Intro', 'Chorus', 'Build']);
+    await expect(page.locator('.scene').first()).toHaveAttribute('data-color', 'teal');
+  });
+  test('split mode and the diagnostics section work, and Multi-out is not offered on two channels', async ({ page }) => {
+    await app(page, 'a => a.setEdit(true, "setup")');
     await expect(page.locator('.seg-btn', { hasText: 'Multi-out' })).toHaveCount(0);
     await page.locator('.seg-btn', { hasText: 'Split' }).tap();
     expect(await app(page, 'a => a.eng.mixer.activeMode')).toBe('split');
-    await page.locator('.seg-btn', { hasText: 'Diagnostics' }).tap();
+    await page.locator('.sec-tab', { hasText: 'Diagnostics' }).tap();
     await expect(page.locator('.kv').last()).toContainText('Sample rate');
     await expect(page.locator('.kv').last()).toContainText('2 reported, 2 opened');
   });

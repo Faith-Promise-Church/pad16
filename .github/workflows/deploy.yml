@@ -1,14 +1,17 @@
 name: Deploy to GitHub Pages
 
-# Publishes two builds to one Pages site:
+# Publishes up to three builds to one Pages site:
 #   /        the main branch (the app played today)
-#   /next/   the live-rig branch (the preview of the overhaul), while that branch exists
+#   /next/   the live-rig branch (the gig build), while that branch exists
+#   /v3/     the v3 branch (Perform and Edit modes, scenes), while that branch exists
+# The workflow file that runs is the one on the branch that was pushed. The /v3/ step exists only on v3, so a push to main or
+# live-rig republishes the site without /v3/ until v3 is pushed again (or this workflow is run by hand from v3).
 # Each branch is built the way it needs: a branch with package.json is installed, tested and built with Vite;
 # a branch without one is the original static app and is published as it is.
 
 on:
   push:
-    branches: [main, live-rig]
+    branches: [main, live-rig, v3]
   workflow_dispatch:
 
 permissions:
@@ -28,15 +31,19 @@ jobs:
       - uses: actions/checkout@v4
         with: { ref: main, path: main }
 
-      - name: Check out the preview branch if it exists
+      - name: Check out the preview branches that exist
         id: next
         run: |
-          if git ls-remote --exit-code --heads "https://github.com/${{ github.repository }}" live-rig >/dev/null 2>&1; then
-            git clone --depth 1 --branch live-rig "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" next
-            echo "found=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "found=false" >> "$GITHUB_OUTPUT"
-          fi
+          repo="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}"
+          for pair in live-rig:next v3:v3; do
+            branch="${pair%%:*}"; dir="${pair##*:}"
+            if git ls-remote --exit-code --heads "$repo" "$branch" >/dev/null 2>&1; then
+              git clone --depth 1 --branch "$branch" "$repo" "$dir"
+              echo "$dir=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "$dir=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
 
       - uses: actions/setup-node@v4
         with:
@@ -57,13 +64,14 @@ jobs:
             fi
           }
           build main _site
-          if [ "${{ steps.next.outputs.found }}" = "true" ]; then build next _site/next; fi
+          if [ "${{ steps.next.outputs.next }}" = "true" ]; then build next _site/next; fi
+          if [ "${{ steps.next.outputs.v3 }}" = "true" ]; then build v3 _site/v3; fi
           touch _site/.nojekyll
           ls -la _site
 
       - name: Browser tests on the branch that was pushed
-        if: hashFiles(format('{0}/playwright.config.ts', github.ref_name == 'main' && 'main' || 'next')) != ''
-        working-directory: ${{ github.ref_name == 'main' && 'main' || 'next' }}
+        if: hashFiles(format('{0}/playwright.config.ts', github.ref_name == 'main' && 'main' || github.ref_name == 'v3' && 'v3' || 'next')) != ''
+        working-directory: ${{ github.ref_name == 'main' && 'main' || github.ref_name == 'v3' && 'v3' || 'next' }}
         run: |
           npx playwright install --with-deps chromium webkit
           npx playwright test

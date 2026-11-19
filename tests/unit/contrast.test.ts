@@ -45,6 +45,30 @@ for (const [name, t] of [['dark', dark], ['daylight', light]] as const) {
         for (const st of ['playing', 'queued', 'stopping']) expect(sat(c), `${n} is quieter than ${st}`).toBeLessThan(sat(rgb(t[st])) - 0.1);
       }
     });
+    it('a sounding pad lit in its own color keeps its name readable and its ring visible', () => {
+      const a = name === 'dark' ? 0.34 : 0.26, sheen = name === 'dark' ? 0.05 : 0;
+      expect(css).toContain(`--tint-pad-lit: ${a * 100}%`);
+      expect(css).toContain(`--sheen: ${sheen * 100}%`);
+      for (const n of ['sand', 'clay', 'rose', 'plum', 'slate', 'teal', 'sage', 'stone']) {
+        const lit = mix(rgb(t['pad-' + n]), rgb(t.surface), a), top = mix(rgb(t.text), lit, sheen);      // the top of a pad carries a faint light
+        for (const bg of [lit, top]) {
+          expect(ratio(rgb(t.text), bg), `text on a lit ${n} pad`).toBeGreaterThanOrEqual(4.5);          // the name, and the word Playing, which is drawn in the text color here
+          expect(ratio(rgb(t.playing), bg), `ring on a lit ${n} pad`).toBeGreaterThanOrEqual(3);
+        }
+      }
+    });
+    it('scene buttons: the name reads on a tinted button, and the one that is on is the brightest thing in the row', () => {
+      const a = name === 'dark' ? 0.2 : 0.22;
+      for (const n of ['sand', 'clay', 'rose', 'plum', 'slate', 'teal', 'sage', 'stone']) {
+        const b = mix(rgb(t['pad-' + n]), rgb(t.surface), a);
+        expect(ratio(rgb(t.text), b), `text on a ${n} scene`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(rgb(t['text-2']), b), `number on a ${n} scene`).toBeGreaterThanOrEqual(4.5);
+        expect(ratio(rgb(t.text), b), `an on scene against a ${n} scene`).toBeGreaterThanOrEqual(4.5);
+      }
+      const queued = mix(rgb(t.queued), rgb(t.raised), name === 'dark' ? 0.14 : 0.16);
+      expect(ratio(rgb(t.queued), queued), 'Next bar on a queued scene').toBeGreaterThanOrEqual(4.5);
+      expect(ratio(rgb(t.text), queued), 'name on a queued scene').toBeGreaterThanOrEqual(4.5);
+    });
     it('text on filled accent buttons holds 4.5:1', () => {
       for (const st of ['playing', 'queued', 'stopping', 'cue', 'text']) expect(ratio(rgb(t['on-accent']), rgb(t[st])), `label on ${st}`).toBeGreaterThanOrEqual(4.5);
     });

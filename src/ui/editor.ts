@@ -1,7 +1,7 @@
 // Edit view: the selected pad's settings, and the step sequencer for pattern pads.
 import type { App } from '../app';
 import type { UI, View } from './views';
-import { h, btn, fader, stepper, segmented, field, textInput, pickButton, openSheet, pickSheet, pct, icon, clear } from './kit';
+import { h, btn, fader, stepper, segmented, field, textInput, pickButton, openSheet, pickSheet, confirmSheet, pct, icon, clear } from './kit';
 import { QUANTS, QUANT_LABEL, Quant, beatsPerBar } from '../engine/time';
 import { confidenceLabel } from '../engine/detect';
 import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc, LEVELS, LEVEL_NORMAL, stepVel } from '../engine/patterns';
@@ -70,9 +70,15 @@ export function editorView(ui: UI): View {
   const newPat = btn({ label: 'New pattern', cls: 'ghost grow', onClick: () => { const p = emptyPattern(uid(), 'New pattern', app.song.ts); app.state.patterns.push(p); patch({ patternId: p.id }); ui.openSequencer(p.id); } });
   const patSec = h('section', {}, h('h3', { text: 'Pattern' }), field('Pattern', pat.el), h('div', { class: 'row' }, editPat, newPat));
   const sampleSec = h('section', {}, h('div', { class: 'row' }, load, reset), info, wave);
+  // a kit goes onto every pad of the song at once, so it asks first
+  const kitLabel = (v: string) => (v === 'rig' ? 'the default layout' : v === 'builtin' ? 'the built-in drums' : v);
+  const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin',
+    onPick: v => confirmSheet('Load kit', `Put ${kitLabel(v)} on the pads of "${app.song.name}"? Every pad on both pages is replaced. Scenes keep pointing at the same pad positions.`, 'Load kit', () => app.loadKit(v)),
+    options: () => [{ value: 'rig', label: 'Default layout', note: 'Two pages: cajon and kick' }, ...app.bank.index.kits.map(k => ({ value: k.name, label: k.name, note: `${k.pads.length} pads` })), { value: 'builtin', label: 'Built-in drums', note: 'Synthesized' }] });
+  const kitSec = h('section', {}, h('h3', { text: 'All pads in this song' }), field('Kit', kit.el), h('p', { class: 'help', text: 'A kit fills every pad at once. To change one pad, use Load sample above.' }));
   const levelSec = h('section', {}, vol.el, field('Pitch', pitch.el));
-  const el = h('section', { class: 'editor', attrs: { 'aria-label': 'Pad settings' } },
-    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), colorField, field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, file);
+  const el = h('aside', { class: 'editor', attrs: { 'aria-label': 'Pad settings' } },
+    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), colorField, field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, kitSec, file);
   let drawn: AudioBuffer | null = null, drawnW = 0;
   function drawWave(buffer: AudioBuffer | null) {
     const r = wave.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -91,7 +97,8 @@ export function editorView(ui: UI): View {
   return {
     el,
     update() {
-      if (!app.state.settings.edit) return;
+      if (!app.state.settings.edit || app.state.settings.dest !== 'pads') return;
+      kit.update();
       const i = app.selected, p = pad(), rt = app.eng.pads.pads[i], meta = app.padMeta[i], b = rt.buffer;
       const isLoop = p.mode === 'loop', isPat = p.mode === 'pattern', synced = app.eng.pads.synced(rt);
       const via = app.selectedVia, where = (n: number) => `${app.pageName(Math.floor(n / PAGE))}, pad ${(n % PAGE) + 1}`;

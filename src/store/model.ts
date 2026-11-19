@@ -60,7 +60,7 @@ export interface SetList { id: string; name: string; songIds: string[] }
 
 export type BusId = 'drums' | 'loops' | 'click' | 'pad' | 'sub';
 export const BUS_IDS: BusId[] = ['drums', 'loops', 'click', 'pad', 'sub'];
-export const BUS_LABEL: Record<BusId, string> = { drums: 'Drums', loops: 'Loops', click: 'Click', pad: 'Pad', sub: 'Sub' };
+export const BUS_LABEL: Record<BusId, string> = { drums: 'Drums', loops: 'Loops', click: 'Click', pad: 'Ambient', sub: 'Bass' };
 export interface BusState { level: number; mute: boolean; dest: 'main' | 'cue' }
 export type OutputMode = 'stereo' | 'split' | 'multi';
 export interface Routing {

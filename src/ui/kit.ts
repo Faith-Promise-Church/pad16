@@ -52,6 +52,12 @@ const ICONS: Record<string, string> = {
   output: '<path d="M4 9v6h4l5 4V5L8 9zM16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>',
   mute: '<path d="M4 9v6h4l5 4V5L8 9zM17 9l5 6M22 9l-5 6"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  stage: '<path d="M3 5h18v11H3zM8 20h8M12 16v4"/><path d="M10 8.5v4l3.5-2z"/>',
+  scene: '<rect x="3" y="5" width="18" height="5" rx="1.5"/><rect x="3" y="14" width="18" height="5" rx="1.5"/>',
+  capture: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',
+  sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>',
+  bass: '<path d="M3 15c3 0 3-6 6-6s3 6 6 6 3-6 6-6"/>',
+  dup: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3L7 7M17 17l1.7 1.7M5.3 18.7L7 17M17 7l1.7-1.7"/>',
 };
 export function icon(name: string, cls = ''): SVGSVGElement {
@@ -99,6 +105,8 @@ export function fader(o: FaderOpts) {
   const out = h('span', { class: 'value fader-value' });
   const el = h('div', { class: 'fader' + (o.vertical ? ' vertical' : ''), attrs: { role: 'slider', tabindex: '0', 'aria-label': o.label || 'Level' } },
     o.label ? h('span', { class: 'label', text: o.label }) : null, track, o.format ? out : null);
+  // the class decides the direction, so a layout can stand a fader up or lay it down
+  const upright = () => el.classList.contains('vertical');
   function paint() {
     const p = Math.min(1, Math.max(0, toPos(val)));
     el.style.setProperty('--pos', String(p));
@@ -107,7 +115,7 @@ export function fader(o: FaderOpts) {
   }
   function fromEvent(e: PointerEvent) {
     const r = track.getBoundingClientRect();
-    const p = o.vertical ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+    const p = upright() ? 1 - (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
     val = fromPos(Math.min(1, Math.max(0, p)));
     paint(); o.onInput(val);
   }
@@ -127,7 +135,37 @@ export function fader(o: FaderOpts) {
     e.preventDefault(); val = fromPos(Math.min(1, Math.max(0, toPos(val) + d))); paint(); o.onInput(val);
   });
   paint();
-  return { el, set(v: number) { if (!dragging && v !== val) { val = v; paint(); } } };
+  return { el, set(v: number) { if (!dragging && v !== val) { val = v; paint(); } }, setVertical(v: boolean) { el.classList.toggle('vertical', v); } };
+}
+
+/** A button that repeats while held, for stepping a value (tempo up and down). */
+export function repeatButton(o: { icon: string; title: string; cls?: string; onStep: () => void }): HTMLButtonElement {
+  const b = h('button', { class: 'btn icon-only ' + (o.cls || ''), title: o.title, attrs: { type: 'button' } }, icon(o.icon));
+  let timer: any = null, count = 0;
+  const stop = () => { clearTimeout(timer); timer = null; count = 0; };
+  const tick = () => { count++; o.onStep(); timer = setTimeout(tick, count < 2 ? 420 : 110); };
+  b.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); stop(); tick(); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); o.onStep(); } });
+  return b;
+}
+/** A button that can ask for a press and hold before it acts, so a stray touch on stage does nothing. needHold is read at press time. */
+export function holdButton(o: { label?: string; icon?: string; title: string; cls?: string; needHold: () => boolean; onGo: () => void; onShortTap?: () => void; ms?: number }): HTMLButtonElement {
+  const b = h('button', { class: 'btn hold-btn ' + (o.cls || ''), title: o.title, attrs: { type: 'button' } });
+  if (o.icon) b.append(icon(o.icon));
+  if (o.label) b.append(h('span', { text: o.label }));
+  if (o.icon && !o.label) b.classList.add('icon-only');
+  let timer: any = null, fired = false;
+  const stop = () => { clearTimeout(timer); timer = null; b.dataset.holding = 'false'; };
+  b.addEventListener('pointerdown', e => {
+    if (e.button > 0 || !o.needHold()) return;
+    fired = false; b.dataset.holding = 'true';
+    timer = setTimeout(() => { fired = true; stop(); o.onGo(); }, o.ms ?? 600);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+  b.addEventListener('click', () => { if (fired) { fired = false; return; } if (o.needHold()) o.onShortTap?.(); else o.onGo(); });
+  b.addEventListener('contextmenu', e => e.preventDefault());
+  return b;
 }
 
 /* ---------- stepper ---------- */
@@ -224,3 +262,31 @@ export function confirmSheet(title: string, message: string, action: string, onY
 }
 export const pct = (v: number) => Math.round(v * 100) + '%';
 export const db = (v: number) => (v <= 0.001 ? '-inf dB' : (20 * Math.log10(v)).toFixed(1) + ' dB');
+
+/* ---------- sections: a destination split into named parts ---------- */
+export interface SectionDef { id: string; label: string; build: () => { el: HTMLElement; update: () => void; frame?: () => void } }
+/** A list of sections beside (or, on a narrow screen, above) the one that is open. Each section is built the first time it is opened. */
+export function sectioned(title: string, defs: SectionDef[], current: () => string, pick: (id: string) => void) {
+  const nav = h('nav', { class: 'sec-nav', attrs: { 'aria-label': title } });
+  const body = h('div', { class: 'sec-body' });
+  const built = new Map<string, { el: HTMLElement; update: () => void; frame?: () => void }>();
+  const tabs = defs.map(d => {
+    const b = h('button', { class: 'sec-tab', text: d.label, attrs: { type: 'button' }, on: { click: () => pick(d.id) } });
+    nav.append(b); return { d, b };
+  });
+  const el = h('div', { class: 'sectioned' }, nav, body);
+  let shown = '';
+  const active = () => (defs.some(d => d.id === current()) ? current() : defs[0].id);
+  return {
+    el,
+    update() {
+      const id = active();
+      for (const t of tabs) t.b.setAttribute('aria-current', String(t.d.id === id));
+      let v = built.get(id);
+      if (!v) { v = defs.find(d => d.id === id)!.build(); v.el.classList.add('sec-pane'); built.set(id, v); }
+      if (shown !== id) { shown = id; body.replaceChildren(v.el); body.scrollTop = 0; }
+      v.update();
+    },
+    frame() { built.get(shown)?.frame?.(); },
+  };
+}
