@@ -76,7 +76,7 @@ A new song, and "Default layout" in the Kit menu, puts this on the pads. It is b
 
 Exclusive groups: pads 2 and 3 (A); every cajon pad, which is pads 5 to 8 and the cajon bass loops on pads 9 to 14 of page 1 (B); the kick loops on page 2 and the kick build (C). Starting one pad in a group stops the others in it on the same bar line, so one cajon part plays at a time and a kick loop can run alongside it.
 
-Colors, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. Change a pad's color in Edit view. On page 1, pads 9 to 14 are cajon grooves built on the kick figures: the Cajon Bass plays the kick loop's part, the slap takes 2 and 4, and soft taps fill in. The kick loops use the Thick Kick. Each track cuts its own previous hit, so busy figures stay tight.
+Colors, by instrument: shaker sage, tambourine teal, claps rose, cajon loops clay, cajon bass loops sand, kick slate, build plum, stomp stone. Change a pad's color in Edit, Pads. On page 1, pads 9 to 14 are cajon grooves built on the kick figures: the Cajon Bass plays the kick loop's part, the slap takes 2 and 4, and soft taps fill in. The kick loops use the Thick Kick. Each track cuts its own previous hit, so busy figures stay tight.
 
 ### In 6/8
 
@@ -123,7 +123,7 @@ A folder under `kits/` whose audio files are all named `Click Accent.wav` (beat 
 
 To replace one sound without the script, drop a 48 kHz WAV with the same file name into `kits/Acoustic Set/` and push.
 
-## Pad sets for the tonic pad
+## Pad sets for the ambient pad
 
 A folder under `kits/` whose audio files are all named by key is a pad set: `Pad C.wav`, `Pad Db.wav`, `Pad D.wav` through `Pad B.wav` (sharps work too: `Pad C#.wav`). Several pad sets can sit side by side; pick one in the tonic pad settings.
 
@@ -139,7 +139,7 @@ If a set is missing a key, the app plays the nearest key it has, pitch-shifted, 
 
 Two sets are in the repo, both in all 12 major keys as one-minute 320 kbps MP3s, untouched apart from their names: `kits/Mesosphere (shimmery)/` and `kits/Troposphere (mellow)/`. MP3s carry a few milliseconds of padding, so they are left untagged and the app bakes the loop crossfade when each one loads; a browser test checks the seam. The minor and neutral versions were left out.
 
-In the web app, every key of the selected pad set is saved for offline use in the background the first time the app is open online (about 37 MB per set). The tonic pad settings show the progress. The iOS app has the files inside it.
+In the web app, every key of the selected pad set is saved for offline use in the background the first time the app is open online (about 37 MB per set). Edit, Song, Ambient shows the progress. The iOS app has the files inside it.
 
 The app decodes pads only when needed and keeps at most three in memory: the current key, the previous one, and the next song's key.
 

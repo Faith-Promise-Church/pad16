@@ -18,7 +18,7 @@ Safari on iPad has no MIDI and cannot choose an audio output. Sound goes to what
 
 ## 2. Web app with MIDI, before the native app exists
 
-Install **MIDIWeb Browser** from the App Store (it adds Web MIDI over USB and Bluetooth) and open the same address in it. Pad16 finds Web MIDI by feature and uses it. Because a browser like this may ignore send timestamps, Pad16 measures clock jitter and, if it has to send clock by timer, marks the clock "approximate" in Settings, MIDI and in Diagnostics.
+Install **MIDIWeb Browser** from the App Store (it adds Web MIDI over USB and Bluetooth) and open the same address in it. Pad16 finds Web MIDI by feature and uses it. Because a browser like this may ignore send timestamps, Pad16 measures clock jitter and, if it has to send clock by timer, marks the clock "approximate" in Edit, Setup, MIDI and in Diagnostics.
 
 ## 3. The iOS app
 
@@ -28,12 +28,12 @@ Install **MIDIWeb Browser** from the App Store (it adds Web MIDI over USB and Bl
 2. Point the tools at Xcode: `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
 3. In the repo: `npm install`
 
-The clone on this Mac is at `~/Documents/Claude Code Codebase/pad16/pad16`, on the `live-rig` branch, with the DIN fonts already copied into `fonts-private/` (ignored by git).
+The clone on this Mac is at `~/Documents/Claude Code Codebase/pad16/pad16`. Version 3 is on the `v3` branch: `git fetch && git checkout v3`.
 
 ### Build and run on your iPad
 
 1. `npm run build:ios`
-   This builds the web app for iOS (bundling DIN from `fonts-private/` when the folder is there, Barlow otherwise) and copies it into the Xcode project.
+   This builds the web app for iOS and copies it into the Xcode project. The typeface is Barlow. To bundle DIN from `fonts-private/` instead, which needs an app license from its foundry, run it as `PAD16_DIN=1 npm run build:ios`.
 2. `open ios/App/App.xcodeproj`
 3. Select the **App** target, **Signing & Capabilities**:
    - Tick **Automatically manage signing**.
@@ -42,7 +42,7 @@ The clone on this Mac is at `~/Documents/Claude Code Codebase/pad16/pad16`, on t
    - **Background Modes** should show Audio. It is already in `Info.plist`.
 4. Plug in the iPad, unlock it, tap Trust. On the iPad: Settings, Privacy & Security, **Developer Mode**, on (it restarts).
 5. Pick the iPad as the run destination and press Run. The first launch asks for Bluetooth permission: allow it, it is how the WIDI Master connects.
-6. In Pad16: Settings, MIDI, **Connect Bluetooth device**, choose WIDI Master.
+6. In Pad16: Edit, Setup, MIDI, **Connect Bluetooth device**, choose WIDI Master.
 
 After changing web code, run `npm run build:ios` again and press Run.
 

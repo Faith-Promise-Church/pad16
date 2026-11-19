@@ -82,7 +82,7 @@ for (const size of SIZES) {
 
 test.describe('phone layout', () => {
   test.use({ viewport: { width: 393, height: 852 }, hasTouch: true });
-  test('Perform on a phone: three bar rows, a small page switch, and pads wide enough to read their names', async ({ page }) => {
+  test('Perform on a phone: three bar rows, a small page switch, and pads wide enough to read their names @webkit', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('html[data-ready="true"]');
     const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
@@ -140,10 +140,10 @@ const SCREENS = [
   { name: 'iPad 13 landscape', width: 1366, height: 1024, tier: 'expanded', arr: 'side', bar: '1', strips: 'upright', pad: 180 },
   { name: 'iPad 13 portrait', width: 1024, height: 1366, tier: 'expanded', arr: 'stack', bar: '2', strips: 'wide', pad: 180 },
   { name: 'iPad 11 landscape', width: 1194, height: 834, tier: 'expanded', arr: 'side', bar: '1', strips: 'upright', pad: 140 },
-  { name: 'iPad mini portrait', width: 744, height: 1133, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 130 },
+  { name: 'iPad mini portrait', width: 744, height: 1133, tier: 'medium', arr: 'stack', bar: '2', strips: 'rows', pad: 130 },
   { name: 'folding phone open, landscape', width: 951, height: 669, tier: 'medium', arr: 'side', bar: '3', strips: 'rows', pad: 120 },
-  { name: 'folding phone open, portrait', width: 669, height: 951, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 120 },
-  { name: 'iPad half-screen window', width: 678, height: 1024, tier: 'medium', arr: 'stack', bar: '2', strips: 'wide', pad: 120 },
+  { name: 'folding phone open, portrait', width: 669, height: 951, tier: 'medium', arr: 'stack', bar: '2', strips: 'rows', pad: 110 },
+  { name: 'iPad half-screen window', width: 678, height: 1024, tier: 'medium', arr: 'stack', bar: '2', strips: 'rows', pad: 110 },
   { name: 'large phone', width: 440, height: 956, tier: 'compact', arr: 'stack', bar: '3', strips: 'rows', pad: 96 },
   { name: 'phone', width: 393, height: 852, tier: 'compact', arr: 'stack', bar: '3', strips: 'rows', pad: 88 },
   { name: 'phone in a browser, short', width: 393, height: 660, tier: 'compact', arr: 'stack', bar: '3', strips: 'pair', pad: 64 },
@@ -152,7 +152,7 @@ const SCREENS = [
 for (const sc of SCREENS) {
   test.describe(`layout: ${sc.name}`, () => {
     test.use({ viewport: { width: sc.width, height: sc.height }, hasTouch: true });
-    test('Perform fits with nothing cut off, and Edit shows each destination', async ({ page }) => {
+    test('Perform fits with nothing cut off, and Edit shows each destination @webkit', async ({ page }) => {
       await page.goto('/');
       await page.waitForSelector('html[data-ready="true"]');
       const root = page.locator('#app');
@@ -500,7 +500,7 @@ test.describe('stage behavior', () => {
     expect(await app(page, 'a => a.bank.index.kits.map(k => [k.name, k.pads.length])')).toEqual([['Acoustic Set', 16], ['Cajon Slaps', 11]]);
     expect(await app(page, 'a => a.realSample({ t: "synth", id: "thick-kick" }).file')).toBe('5 Thick Kick.wav');
   });
-  test('Perform holds only what is played live; stage lock guards Edit; the daylight theme applies', async ({ page }) => {
+  test('Perform holds only what is played live; stage lock guards Edit; the daylight theme applies @webkit', async ({ page }) => {
     const root = page.locator('#app');
     await expect(root).toHaveAttribute('data-mode', 'perform');
     for (const sel of ['.editor', '.dest-host', '.edit-bar', '.dest-tabs.in-bar']) await expect(page.locator(sel)).toBeHidden();
@@ -539,7 +539,7 @@ test.describe('stage behavior', () => {
     await page.reload(); await page.waitForSelector('html[data-ready="true"]');
     await expect(root).toHaveAttribute('data-mode', 'perform');
   });
-  test('scenes: a press changes the whole section on the next bar line, and Capture saves what is playing', async ({ page }) => {
+  test('scenes: a press changes the whole section on the next bar line, and Capture saves what is playing @webkit', async ({ page }) => {
     await app(page, 'a => a.loadKit("rig")');
     await expect(page.locator('.scene:not(.scene-capture) .scene-name')).toHaveText(['Intro', 'Verse', 'Chorus', 'Build', 'Down']);
     const scene = (name: string) => page.locator('.scene', { hasText: name });
@@ -586,7 +586,7 @@ test.describe('stage behavior', () => {
     await page.locator('.perform-bar .panic-btn').tap();
     await expect(page.locator('.scene[data-look="on"], .scene[data-look="last"], .scene[data-look="queued"]')).toHaveCount(0);
   });
-  test('scenes are edited in Song, Scenes: rename, color, pads, order, delete, and they come back after a reload', async ({ page }) => {
+  test('scenes are edited in Song, Scenes: rename, color, pads, order, delete, and they come back after a reload @webkit', async ({ page }) => {
     await app(page, 'a => a.loadKit("rig")');
     await app(page, 'a => a.setEdit(true, "song")');
     await page.locator('.sec-tab', { hasText: 'Scenes' }).tap();

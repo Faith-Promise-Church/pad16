@@ -130,7 +130,7 @@ h2, p { margin: 0; }
 .run-btn { width: calc(var(--u) * 8); height: calc(var(--u) * 8); border-radius: var(--r-pad); background: var(--text); color: var(--on-accent); border-color: var(--text); }
 .run-btn .icon { width: calc(var(--icon) * 1.25); height: calc(var(--icon) * 1.25); fill: currentColor; }
 .run-btn[data-running="true"] { background: var(--playing); border-color: var(--playing); box-shadow: 0 0 calc(var(--u) * 2.5) color-mix(in srgb, var(--playing) var(--glow), transparent); }
-.bpm { display: grid; justify-items: center; min-width: 3.4ch; padding: 0 calc(var(--u) / 2); }
+.bpm { display: grid; justify-items: center; min-width: 3.4ch; padding: 0 var(--u); }
 .bpm-num { font-size: var(--fs-bpm); font-weight: var(--w-light); line-height: 0.95; letter-spacing: -0.01em; min-width: 3.2ch; text-align: center; }
 .bpm-unit { font-size: var(--fs-label); font-weight: var(--w-medium); letter-spacing: var(--ls-label); color: var(--text-2); white-space: pre; }
 .bpm[data-pending="true"] .bpm-num { color: var(--queued); }
@@ -274,12 +274,17 @@ h2, p { margin: 0; }
 .pad.sel { outline: var(--outline) solid var(--select); outline-offset: calc(var(--outline) * -1); }
 .pad.drop { --pad-edge: var(--cue); border-style: dashed; }
 .pad-group { position: absolute; right: calc(var(--u) * 1.5); bottom: calc(var(--u) * 1.5); font-size: var(--fs-label); font-weight: var(--w-bold); color: var(--text-2); }
+/* mid-size pads in Perform: the ring moves to the bottom corner so a name gets the full width */
+#app[data-tier="medium"][data-mode="perform"] .pad-name { right: calc(var(--u) * 1.5); -webkit-line-clamp: 3; }
+#app[data-tier="medium"][data-mode="perform"] .pad-ring { top: auto; bottom: calc(var(--u) * 1.5); }
+#app[data-tier="medium"][data-mode="perform"] .pad:is([data-state="playing"], [data-state="stopping"]) .pad-group { display: none; }
 #app[data-tier="compact"] .pad-type { display: none; }
 #app[data-tier="compact"] .pad-name { left: calc(var(--u) * 0.75); top: var(--u); right: calc(var(--u) * 0.75); -webkit-line-clamp: 3; }
 #app[data-tier="compact"] .pad-ring { right: calc(var(--u) * 0.75); top: auto; bottom: calc(var(--u) * 0.75); }
 #app[data-tier="compact"] .pad-state { left: calc(var(--u) * 0.75); bottom: var(--u); }
-/* small pads: the ring and the lit pad say playing and stopping; the word would run under the ring */
-#app[data-tier="compact"] .pad:is([data-state="playing"], [data-state="stopping"]) :is(.pad-group, .pad-state) { display: none; }
+/* small pads have room for the ring or the word, not both: a playing pad keeps the ring, a stopping pad keeps the word */
+#app[data-tier="compact"] .pad[data-state="playing"] :is(.pad-group, .pad-state) { display: none; }
+#app[data-tier="compact"] .pad[data-state="stopping"] :is(.pad-group, .pad-ring) { display: none; }
 #app[data-tier="compact"][data-mode="perform"] .pad-group { display: none; }
 #app[data-tier="compact"][data-mode="edit"] .pad-name { font-size: var(--fs-label); }
 #app[data-tier="compact"][data-mode="edit"] :is(.pad canvas, .pad-group, .pad-ring) { display: none; }

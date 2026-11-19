@@ -20,7 +20,7 @@ export function layoutFor(w: number, ht: number): { tier: Tier; arr: Arrangement
   const bar: BarRows = tier === 'compact' || (arr === 'side' && ht < 700) ? 3 : w < 1180 ? 2 : 1;
   const strips: StripsShape = arr === 'side' && bar !== 3 ? 'upright'
     : tier === 'compact' && (arr === 'side' || ht < 800) ? 'pair'
-    : tier === 'compact' || arr === 'side' ? 'rows' : 'wide';
+    : tier === 'expanded' ? 'wide' : 'rows';          // two across leaves a fader under 100 px on anything narrower than an iPad
   return { tier, arr, tabs, bar, strips };
 }
 /** Columns for the scene buttons: one row on a wide portrait screen, two columns beside the pads, otherwise two balanced rows

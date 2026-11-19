@@ -1,8 +1,28 @@
 # Progress
 
-Branch: `live-rig`. Never push to `main`.
+Branch: `v3` (from `live-rig`). Never push to `main`. `live-rig` is the gig build and is left alone until v3 has been played.
 
-## Phases
+## Version 3
+
+| Phase | What | State |
+| --- | --- | --- |
+| 1. Structure | Perform and Edit modes, five Edit destinations, scenes, layouts for iPad, folding phone and phone | Done on `v3`. Not yet played on a device. |
+| 2. Sound | Effects (reverb, delay, tape), sample library browser, the new sample content | Not started |
+| 3. Ship | TestFlight internal build for iPad, iPhone and the folding iPhone | Not started. Needs Xcode. |
+| Track 0 | First compile of the iOS app on the Mac | Blocked: the Mac needs macOS 26.6 or newer and about 60 GB free for Xcode 27.1 |
+
+Phase 1, in short (decisions 92 to 111):
+
+- Perform: start and stop, tempo with one-beat buttons, tap, click, bar and beat, song and next song, scene row, 16 pads, Ambient and Bass (on, off, fader), panic. Opens no settings.
+- Edit: Pads, Loops, Song, Mix, Setup. Per-song settings in Song, per-device settings in Setup, each once.
+- Scenes: up to 8 a song, launched on the bar line, Capture, rename, color, reorder, pedal, keyboard and MIDI.
+- Layout picked from the window size: iPad both ways, Split View, a folding phone opened both ways, phones both ways.
+- Pads light while sounding and show loop position as a ring. Barlow in every build.
+- Preview at `/v3/` once the `github-pages` environment allows the branch `v3`.
+
+## Earlier work (the live rig)
+
+
 
 | # | Phase | State |
 | --- | --- | --- |
@@ -38,11 +58,14 @@ Branch: `live-rig`. Never push to `main`.
 ## Tests (all passing at the last commit)
 
 - `npm run typecheck`
-- `npm test`: unit tests (musical math, tags, tempo detection, sub synth note priority, patterns, MIDI clock and input with the mock backend, saved-data migration, set export and import, contrast, kit scripts)
-- `npm run test:e2e`: offline render tests of the real engine in OfflineAudioContext, and smoke tests at 1024x1366, 1366x1024 and 430x932
+- `npm test`: unit tests (musical math, tags, tempo detection, sub synth note priority, patterns, MIDI clock and input with the mock backend, saved-data migration including scenes, set export and import, contrast, layout rules, kit scripts)
+- `npm run test:e2e`: offline render tests of the real engine in OfflineAudioContext (a scene starts, stops and keeps pads on one bar line), and browser tests: play at 1024x1366, 1366x1024 and 430x932; the Perform and Edit layout at 11 window sizes; scenes; stage lock; each Edit destination. The layout, scene and Perform tests also run in WebKit, the engine Safari and the iOS app use.
 
 ## Not verified here
 
+- Version 3 on any real device. Everything in it was built and checked in desktop Chrome at each device's point size. Touch feel, fader length under a thumb, legibility under stage light and the safe areas are for the iPad and the phone: see section 8 of `docs/HARDWARE_TEST.md`.
+- The folding iPhone layout. Its sizes are Apple's published points; it needs the iOS build made with the SDK that knows the device.
+- The starter scenes are a guess (decision 98).
 - The iOS app has never been compiled. Xcode is not installed on the Mac. `HostClock.swift`, `MidiEngine.swift`, `BleReconnector.swift` and `CueClick.swift` type-check against the macOS SDK; `AudioSessionController.swift` and `Pad16NativePlugin.swift` could not be checked.
 - Everything in `docs/HARDWARE_TEST.md`.
 - Signalsmith Stretch on a real iPad. It now runs in a Worker and is tested in Playwright's WebKit (the engine Safari uses), which is where it failed before. How it sounds on the shaker at 66 and 68 BPM (15 to 18 percent slower) is for ears.
@@ -51,12 +74,15 @@ Branch: `live-rig`. Never push to `main`.
 
 ## State of the Mac
 
-- Clone at `~/Documents/Claude Code Codebase/pad16/pad16`, on `live-rig`.
-- `fonts-private/` there holds the four DIN files, ignored by git (`git check-ignore` confirms).
+- Clone at `~/Documents/Claude Code Codebase/pad16/pad16`, on `live-rig`, three commits behind GitHub when last looked at. Version 3 was built in a separate clone and pushed; nothing on the Mac was changed.
+- To get it: `git fetch && git checkout v3` (and `git pull` on `live-rig` to catch that branch up).
+- `fonts-private/` there holds the four DIN files, ignored by git. They are no longer used unless a build asks for them (decision 109).
+- macOS 26.3.1, about 34 GB free, no Xcode.
 
 ## Exact next step
 
-1. Allow the preview: Settings, Environments, github-pages, Deployment branches and tags, add `live-rig`. Then re-run the failed "Deploy to GitHub Pages" run for `live-rig`.
-2. Install Xcode, then in the Mac clone: `git pull && npm install && npm run build:ios`, open `ios/App/App.xcodeproj`, set the team, build. Fix any compile errors in `AudioSessionController.swift` or `Pad16NativePlugin.swift`, then prove it with
-   `xcodebuild -project ios/App/App.xcodeproj -scheme App -destination 'generic/platform=iOS Simulator' build`.
-3. Work through `docs/HARDWARE_TEST.md` on the rig and bring back the notes.
+1. Allow the preview: GitHub, Settings, Environments, github-pages, Deployment branches and tags, add `v3`. Then re-run the "Deploy to GitHub Pages" run for `v3`. The preview is then at `/v3/`.
+2. Play a set from Perform on the iPad and work through section 8 of `docs/HARDWARE_TEST.md`. Change the starter scenes to the real ones.
+3. When it has been played: merge `v3` into `live-rig`.
+4. For the iOS build: update the Mac to macOS 26.6 or newer, free about 60 GB, install Xcode 27.1. Then in the Mac clone: `git checkout v3 && npm install && npm run build:ios`, open `ios/App/App.xcodeproj`, set the team, build.
+5. Phase 2 (sound) can start in parallel with 2 to 4.
