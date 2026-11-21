@@ -34,6 +34,8 @@ const SHOTS = [
   ['edit-pads', dest('pads')],
   ['edit-loops', dest('loops')],
   ['sequencer', `(async () => { const a = window.pad16; a.setEdit(true, 'pads'); a.select(4); await new Promise(r => setTimeout(r, 150)); [...document.querySelectorAll('.editor .btn')].find(b => b.textContent === 'Edit pattern').click(); })()`],
+  // the sound library, opened from a pad on the Cajon shelf. Needs the sounds repository beside the app (or PAD16_SOUNDS).
+  ['library', `(async () => { const a = window.pad16; a.setEdit(true, 'pads'); a.select(2); await new Promise(r => setTimeout(r, 150)); document.querySelector('.lib-open').click(); await new Promise(r => setTimeout(r, 200)); [...document.querySelectorAll('.lib-cat')].find(b => b.textContent.startsWith('Cajon')).click(); })()`],
   ['song-set-list', dest('song', 'Set list')],
   ['song-this-song', dest('song', 'This song')],
   ['song-tempo', dest('song', 'Tempo and click')],
@@ -43,6 +45,7 @@ const SHOTS = [
   ['song-bass', dest('song', 'Bass')],
   ['edit-mix', dest('mix')],
   ['setup-audio', dest('setup', 'Audio')],
+  ['setup-sounds', dest('setup', 'Sounds')],
   ['setup-midi', dest('setup', 'MIDI')],
   ['setup-display', dest('setup', 'Display')],
   ['setup-backup', dest('setup', 'Backup')],
@@ -50,7 +53,7 @@ const SHOTS = [
 ];
 // iPad both ways, a folding phone opened up both ways, a phone both ways
 const SIZES = { landscape: [1366, 1024], portrait: [1024, 1366], 'fold-landscape': [951, 669], 'fold-portrait': [669, 951], phone: [393, 852], 'phone-landscape': [852, 393] };
-const FEW = { portrait: ['perform', 'edit-pads', 'edit-mix'], 'fold-landscape': ['perform'], 'fold-portrait': ['perform', 'edit-pads'], phone: ['perform', 'edit-pads', 'song-tempo', 'song-scenes', 'edit-mix'], 'phone-landscape': ['perform'] };
+const FEW = { portrait: ['perform', 'edit-pads', 'edit-mix', 'library'], 'fold-landscape': ['perform'], 'fold-portrait': ['perform', 'edit-pads'], phone: ['perform', 'edit-pads', 'library', 'song-tempo', 'song-scenes', 'edit-mix'], 'phone-landscape': ['perform'] };
 const only = process.argv[2];
 
 for (const theme of ['dark', 'light']) {

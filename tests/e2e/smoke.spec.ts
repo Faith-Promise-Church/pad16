@@ -519,7 +519,7 @@ test.describe('stage behavior', () => {
     await page.locator('.dest-tab[data-dest="song"]').first().tap();
     await expect(page.locator('.sec-tab')).toHaveText(['Set list', 'This song', 'Tempo and click', 'Scenes', 'Ambient', 'Bass']);
     await page.locator('.dest-tab[data-dest="setup"]').first().tap();
-    await expect(page.locator('.dest-pane[data-dest="setup"] .sec-tab')).toHaveText(['Audio', 'MIDI', 'Display', 'Backup', 'Diagnostics']);
+    await expect(page.locator('.dest-pane[data-dest="setup"] .sec-tab')).toHaveText(['Audio', 'Sounds', 'MIDI', 'Display', 'Backup', 'Diagnostics']);
     await page.locator('.dest-pane[data-dest="setup"] .sec-tab', { hasText: 'Display' }).tap();
     await page.locator('.toggle', { hasText: 'Stage lock' }).tap();
     expect(await app(page, 'a => a.state.settings.editLock')).toBe(true);

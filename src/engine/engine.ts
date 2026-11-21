@@ -4,6 +4,7 @@ import { Mixer } from './mixer';
 import { Scheduler } from './scheduler';
 import { Transport } from './transport';
 import { ClickBackend, WebClick } from './click';
+import { CountVoice } from './countvoice';
 import { PadPlayer } from './pads';
 import { SubSynth } from './subsynth';
 import { TonicPad } from './tonicpad';
@@ -13,7 +14,7 @@ import { TimeSig } from './time';
 export interface EngineOpts { offline?: boolean; bpm?: number; ts?: TimeSig }
 
 export class Engine {
-  clock: Clock; mixer: Mixer; scheduler: Scheduler; transport: Transport; click: ClickBackend;
+  clock: Clock; mixer: Mixer; scheduler: Scheduler; transport: Transport; click: ClickBackend; count: CountVoice;
   pads: PadPlayer; sub: SubSynth; tonic: TonicPad;
   offline: boolean;
   /** In offline renders the caller moves time by hand. */
@@ -29,9 +30,10 @@ export class Engine {
     this.transport = new Transport(this);
     this.pads = new PadPlayer(this);
     this.click = new WebClick(this);
+    this.count = new CountVoice(this);
     this.sub = new SubSynth(this);
     this.tonic = new TonicPad(this);
-    this.scheduler.sources.push(this.pads, { schedule: (a, b) => this.click.schedule(a, b) });
+    this.scheduler.sources.push(this.pads, { schedule: (a, b) => this.click.schedule(a, b) }, this.count);
   }
   now(): number { return this.offline ? this.virtualNow : this.ctx.currentTime; }
 
@@ -59,6 +61,7 @@ export class Engine {
     this.transport.stop();
     this.pads.stopAll(0.05);
     this.click.silence();
+    this.count.silence();
     this.sub.allOff();
     this.tonic.cut();
   }

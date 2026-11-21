@@ -64,6 +64,13 @@ test('an exclusive group swaps loops on the same boundary', async () => {
   expect(r.after).toBeGreaterThan(1800); expect(r.after).toBeLessThan(2200);       // 1000 Hz tone
   expect(r.finalA).toBe('stopped'); expect(r.finalB).toBe('playing');
 });
+test('the spoken count-in lands each word on its beat and stops at the downbeat', async () => {
+  const r = await H<any>('spokenCount');
+  expect(r.count).toBe(4);
+  for (const e of r.err) expect(Math.abs(e)).toBeLessThanOrEqual(1);                // the vowel, not the start of the word, is on the beat
+  for (let i = 1; i < 4; i++) expect(r.levels[i]).toBeGreaterThan(r.levels[i - 1] * 1.2);   // each test word is louder than the last: one, two, three, four came out in that order
+  expect(r.afterZero).toBe(0);
+});
 test('a scene starts, stops and keeps pads on one bar line', async () => {
   const r = await H<any>('scene');
   expect(r.empty).toBe(-1); expect(r.stayedStopped).toBe(true);                    // an empty scene does not start a stopped transport

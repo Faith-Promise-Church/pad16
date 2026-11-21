@@ -22,6 +22,8 @@ export type PadColor = (typeof PAD_COLORS)[number];
 export const PAGE = 16, PAGES = 2, PADS = PAGE * PAGES;
 export interface ClickSettings {
   on: boolean; sub: Subdivision; accent: number; beat: number; subLevel: number; countIn: 0 | 1 | 2;
+  /** Say the numbers over the count-in. On unless switched off; it needs the count words from the sound library. */
+  spoken?: boolean;
   samples: { accent?: string; beat?: string; sub?: string };
 }
 export type SubWave = 'sine' | 'triangle' | 'sawtooth' | 'square';

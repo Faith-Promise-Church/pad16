@@ -70,6 +70,8 @@ export function tempoPane(ui: UI): Pane {
   const num = stepper({ value: app.song.ts.num, min: 1, max: 12, label: 'beats in the bar', onChange: v => app.setTs({ ...app.song.ts, num: v }) });
   const den = segmented<Den>({ label: 'Note value', value: app.song.ts.den, options: ([2, 4, 8, 16] as Den[]).map(d => ({ value: d, label: String(d) })), onChange: v => app.setTs({ ...app.song.ts, den: v }) });
   const countIn = segmented<0 | 1 | 2>({ label: 'Count-in', value: app.song.click.countIn, options: [{ value: 0, label: 'Off' }, { value: 1, label: '1 bar' }, { value: 2, label: '2 bars' }], onChange: v => patchClick({ countIn: v }) });
+  const spoken = toggle({ label: 'Say the numbers', value: app.song.click.spoken !== false, onChange: v => patchClick({ spoken: v }) });
+  const spokenHelp = h('p', { class: 'help' }), spokenField = field('Spoken count-in', spoken.el, spokenHelp);
   const quant = pickButton<Quant>({ title: 'Launch quantize', value: () => app.song.quantize, onPick: v => app.patchSong({ quantize: v }), options: () => QUANTS.map(q => ({ value: q, label: QUANT_LABEL[q] })) });
   const note = h('p', { class: 'help' });
   // 6/8, 9/8, 12/8: charts print the tempo in quarter notes (74 means eighth notes at 148), the pulse is the dotted quarter
@@ -92,7 +94,7 @@ export function tempoPane(ui: UI): Pane {
   const el = pane(
     h('section', {}, h('h3', { text: 'Tempo' }), h('div', { class: 'row' }, nudge(-1, '-1'), nudge(-0.1, '-0.1'), h('div', { class: 'grow' }, input.el), nudge(0.1, '+0.1'), nudge(1, '+1'), btn({ label: 'Tap', cls: 'primary', onClick: () => app.tap() })), note),
     h('section', {}, h('h3', { text: 'Time signature' }), h('div', { class: 'two' }, field('Beats', num.el), field('Note value', den.el)), countField),
-    h('section', {}, h('h3', { text: 'Launch' }), h('div', { class: 'two' }, field('Count-in', countIn.el), field('Launch quantize for loops and patterns', quant.el)),
+    h('section', {}, h('h3', { text: 'Launch' }), h('div', { class: 'two' }, field('Count-in', countIn.el), field('Launch quantize for loops and patterns', quant.el)), spokenField,
       h('p', { class: 'help', text: 'Scenes always land on a bar line.' })),
     h('section', { class: 'click-section' }, h('h3', { text: 'Click' }), h('div', { class: 'row' }, on.el), field('Subdivisions', sub.el), lv.accent.el, lv.beat.el, lv.subLevel.el, dest),
     h('section', {}, h('h3', { text: 'Click samples for this song only' }), h('p', { class: 'help', text: 'Import a sample to replace one click sound in this song. The click sound for every song is chosen in Setup, Audio.' }), ...slots.map(s => s.row)));
@@ -100,7 +102,10 @@ export function tempoPane(ui: UI): Pane {
     el,
     update() {
       const c = app.song.click;
-      input.set(String(app.song.bpm)); num.set(app.song.ts.num); den.set(app.song.ts.den); countIn.set(c.countIn); quant.update();
+      input.set(String(app.song.bpm)); num.set(app.song.ts.num); den.set(app.song.ts.den); countIn.set(c.countIn); quant.update(); spoken.set(c.spoken !== false);
+      spokenField.toggleAttribute('hidden', !c.countIn);
+      const words = app.eng.count.ready;
+      spokenHelp.textContent = words ? `Your voice counts the bar over the click, in your ears with the click. ${words} numbers are loaded.` : 'The count words come from the sound library, which is not on this device yet: Setup, Sounds.';
       const compound = isCompound(app.song.ts), q = app.song.tempoCount === 'quarter';
       countField.hidden = !compound; count.set(q ? 'quarter' : 'pulse');
       const r1 = (n: number) => String(Math.round(n * 10) / 10);
@@ -555,6 +560,48 @@ export function displayPane(ui: UI): Pane {
   return { el, update() { theme.set(S().theme); lock.set(S().editLock); pedal.set(!S().pedalKeys ? 'off' : S().pedalMode === 'scene' ? 'scene' : 'song'); ci.set(S().countInOnPadLaunch); } };
 }
 
+export function soundsPane(ui: UI): Pane {
+  const { app } = ui;
+  const status = h('div', { class: 'note' }, icon('check'), h('span', {}));
+  const cfg = app.soundsSetup;
+  const repo = textInput({ value: cfg.repo, max: 80, placeholder: 'owner/repository' });
+  const key = textInput({ value: cfg.key, max: 200, placeholder: 'Paste the access key' });
+  key.el.type = 'password'; key.el.setAttribute('aria-label', 'Access key'); key.el.setAttribute('autocomplete', 'off'); repo.el.setAttribute('aria-label', 'Sounds repository');
+  let busy = false;
+  const save = btn({ label: 'Connect', cls: 'primary', onClick: async () => {
+    busy = true; update();
+    const st = await app.setSounds({ repo: repo.el.value, key: key.el.value });
+    busy = false; update();
+    app.toast(st === 'connected' ? `Connected. ${app.library.length} sounds in the library.` : st === 'bad-key' ? 'That key was not accepted for this repository.' : st === 'no-key' ? 'No key entered.' : 'The repository could not be reached.');
+  } });
+  const forget = btn({ label: 'Remove the key', cls: 'ghost', onClick: async () => { key.el.value = ''; await app.setSounds({ key: '' }); app.toast('Key removed. Sounds fetched with it were cleared from this device.'); } });
+  const keep = btn({ label: 'Keep every sound on this device', onClick: () => app.keepAllSounds() });
+  const keepNote = h('p', { class: 'help' });
+  const connect = h('section', {}, h('h3', { text: 'Access key' }),
+    h('p', { class: 'help', text: 'The sounds are kept in a private place, because most of them are licensed for our use and may not be passed on. This device needs a key to read them. It is entered once and stays on this device; it is never part of an exported set.' }),
+    field('Repository', repo.el), field('Access key', key.el), h('div', { class: 'row' }, save, forget),
+    h('p', { class: 'help', text: 'To make a key: on GitHub open Settings, Developer settings, Fine-grained tokens, Generate new token. Resource owner: the organization. Repository access: only the sounds repository. Permissions: Contents, read-only. Copy the token and paste it here.' }));
+  const offline = h('section', {}, h('h3', { text: 'Offline' }), h('p', { class: 'help', text: 'A sound is fetched the first time it is used and kept after that. To be sure the whole library plays with no connection, fetch it all now.' }), h('div', { class: 'row' }, keep), keepNote);
+  const el = pane(h('section', {}, h('h3', { text: 'Sound library' }), status), connect, offline);
+  function update() {
+    const st = app.soundsState, n = app.library.length, k = app.keeping;
+    const fine = st === 'bundled' || st === 'connected';
+    status.className = 'note' + (fine ? '' : st === 'no-key' ? ' warn' : ' bad');
+    if (status.dataset.fine !== String(fine)) { status.dataset.fine = String(fine); status.firstElementChild!.replaceWith(icon(fine ? 'check' : 'warn')); }
+    status.querySelector('span')!.textContent = busy ? 'Checking the key...'
+      : st === 'bundled' ? `The sounds came with this app: ${n} in the library. Nothing to set up.`
+      : st === 'connected' ? `Connected to the private sounds repository: ${n} sounds in the library.`
+      : st === 'no-key' ? 'No access key on this device. Kits published with the app still play; the sound library and the spoken count-in need the key.'
+      : st === 'bad-key' ? 'The key was not accepted. It may have expired, or it may not include this repository.'
+      : 'The sounds repository could not be reached. Sounds already on this device still play.';
+    connect.hidden = st === 'bundled'; offline.hidden = st !== 'connected';
+    save.disabled = busy; forget.hidden = !app.soundsSetup.key;
+    keep.disabled = k.active;
+    keepNote.textContent = k.active ? `Fetching: ${k.done} of ${k.total}.` : k.total ? `${k.done} of ${k.total} sounds are on this device.${k.failed ? ` ${k.failed} could not be fetched; try again on a better connection.` : ''}` : '';
+  }
+  return { el, update };
+}
+
 export function backupPane(ui: UI): Pane {
   const { app } = ui;
   const file = h('input', { attrs: { type: 'file', accept: '.pad16set,.zip,application/zip', hidden: '' } });
@@ -567,7 +614,7 @@ export function backupPane(ui: UI): Pane {
     const a = h('a', { attrs: { href: URL.createObjectURL(blob), download: out.name } }); document.body.append(a); a.click(); a.remove();
   } });
   const el = pane(h('section', {}, h('h3', { text: 'Backup and transfer' }), which, h('div', { class: 'row' }, exp, btn({ label: 'Import a set', icon: 'import', onClick: () => file.click() })),
-    h('p', { class: 'help', text: 'A set file holds every song in the set with its scenes, its patterns and the samples you imported. Kit samples ship with the app and are not copied.' }), file));
+    h('p', { class: 'help', text: 'A set file holds every song in the set with its scenes, its patterns and the samples you imported. Kit and library sounds are not copied: every device gets those from the sound library.' }), file));
   return { el, update() { which.textContent = `The set open now is "${app.set.name}", with ${app.set.songIds.length} song${app.set.songIds.length === 1 ? '' : 's'}.`; } };
 }
 

@@ -49,7 +49,11 @@ jobs:
         with:
           node-version: 22
 
+      # The private sounds repository is never part of the published site: it holds licensed samples.
+      # The web version reads it with an access key entered on each device (Edit, Setup, Sounds).
       - name: Build each branch
+        env:
+          PAD16_SOUNDS: none
         run: |
           set -e
           build() {            # build <source dir> <output dir>

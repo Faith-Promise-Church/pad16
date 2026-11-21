@@ -132,6 +132,22 @@ const H = {
     const boundary = t0 + 4;      // bar 2 at 120
     return { states, before: rate(boundary - 0.05), after: rate(boundary + 0.03), finalA: eng.pads.view(0).state, finalB: eng.pads.view(1).state };
   },
+  /** Spoken count-in: each "word" here is silence with one spike 100 ms in (standing for the vowel), tagged with that lead time.
+   *  With a one-bar count at 120 the four spikes must land on the four count beats, in order, and nothing is said after beat 0. */
+  async spokenCount() {
+    const { ctx, eng } = offline(6, 120);
+    const word = (level: number) => { const d = new Float32Array(Math.round(0.3 * SR)); d[Math.round(0.1 * SR)] = level; return eng.toBuffer([d], SR); };
+    for (let n = 1; n <= 4; n++) eng.count.setWord(n, word(0.2 * n), 0.1);
+    eng.click.setSettings({ ...eng.click.settings, on: false, accent: 0, beat: 0, subLevel: 0 });
+    eng.transport.countInBars = 1;
+    const t0 = eng.transport.start();
+    for (let t = 0; t < 5.8; t += 0.1) { eng.virtualNow = t; eng.scheduler.advanceTo(t + 0.12); }
+    const x = (await ctx.startRendering()).getChannelData(0);
+    const spikes: Array<{ at: number; level: number }> = [];
+    for (let i = 0; i < x.length; i++) if (Math.abs(x[i]) > 0.05) spikes.push({ at: i, level: Math.round(Math.abs(x[i]) * 100) / 100 });
+    const beats = [-4, -3, -2, -1].map(b => Math.round(eng.clock.timeAt(b) * SR));
+    return { t0, count: spikes.length, err: spikes.map((s, i) => s.at - beats[i]), levels: spikes.map(s => s.level), afterZero: spikes.filter(s => s.at >= Math.round(t0 * SR)).length };
+  },
   /** Scenes: scene 1 (a 200 Hz loop and a 1000 Hz loop) starts the transport; scene 2 (the 1000 Hz loop and a tick loop) is launched mid-bar.
    *  On the next bar line the 200 Hz loop must end, the tick loop must start, and the 1000 Hz loop must carry on untouched. Then an empty scene stops the rest. */
   async scene() {

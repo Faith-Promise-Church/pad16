@@ -2,6 +2,8 @@
 import type { App } from '../app';
 import type { UI, View } from './views';
 import { h, btn, fader, stepper, segmented, field, textInput, pickButton, openSheet, pickSheet, confirmSheet, pct, icon, clear } from './kit';
+import { openLibrary } from './library';
+import { libRef, isLibRef } from '../engine/bank';
 import { QUANTS, QUANT_LABEL, Quant, beatsPerBar } from '../engine/time';
 import { confidenceLabel } from '../engine/detect';
 import { emptyPattern, resizePattern, patternSteps, Pattern, TrackSrc, LEVELS, LEVEL_NORMAL, stepVel } from '../engine/patterns';
@@ -19,6 +21,7 @@ export function editorView(ui: UI): View {
   file.addEventListener('change', () => { const fs = [...(file.files || [])]; file.value = ''; if (fs.length) app.loadFiles(fs, app.selected); });
   const load = btn({ label: 'Load sample', cls: 'primary grow', onClick: () => file.click() });
   const reset = btn({ label: 'Reset pad', cls: 'ghost grow', onClick: () => app.resetPad(app.selected) });
+  const browse = btn({ label: 'Sound library', cls: 'grow lib-open', title: 'Browse the sound library', onClick: () => openLibrary(ui, { title: 'Sound library', action: 'Use', onPick: item => app.loadLibraryPad(app.selected, item) }) });
   const info = h('p', { class: 'help' });
   // color: none, or one of the muted pad colors
   const swatches = (['', ...PAD_COLORS] as Array<PadColor | ''>).map(c => {
@@ -70,6 +73,8 @@ export function editorView(ui: UI): View {
   const newPat = btn({ label: 'New pattern', cls: 'ghost grow', onClick: () => { const p = emptyPattern(uid(), 'New pattern', app.song.ts); app.state.patterns.push(p); patch({ patternId: p.id }); ui.openSequencer(p.id); } });
   const patSec = h('section', {}, h('h3', { text: 'Pattern' }), field('Pattern', pat.el), h('div', { class: 'row' }, editPat, newPat));
   const sampleSec = h('section', {}, h('div', { class: 'row' }, load, reset), info, wave);
+  // the library is offered on every pad, whatever it holds now: choosing a sound makes the pad a sample pad
+  const libSec = h('div', { class: 'row' }, browse);
   // a kit goes onto every pad of the song at once, so it asks first
   const kitLabel = (v: string) => (v === 'rig' ? 'the default layout' : v === 'builtin' ? 'the built-in drums' : v);
   const kit = pickButton<string>({ title: 'Kit', value: () => app.song.kit || 'builtin',
@@ -78,7 +83,7 @@ export function editorView(ui: UI): View {
   const kitSec = h('section', {}, h('h3', { text: 'All pads in this song' }), field('Kit', kit.el), h('p', { class: 'help', text: 'A kit fills every pad at once. To change one pad, use Load sample above.' }));
   const levelSec = h('section', {}, vol.el, field('Pitch', pitch.el));
   const el = h('aside', { class: 'editor', attrs: { 'aria-label': 'Pad settings' } },
-    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), colorField, field('Pad type', mode.el), sampleSec, levelSec, loopSec, patSec, launchSec, kitSec, file);
+    h('div', { class: 'editor-head' }, title, keyHint), shared, field('Name', name.el), colorField, field('Pad type', mode.el), libSec, sampleSec, levelSec, loopSec, patSec, launchSec, kitSec, file);
   let drawn: AudioBuffer | null = null, drawnW = 0;
   function drawWave(buffer: AudioBuffer | null) {
     const r = wave.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -113,7 +118,7 @@ export function editorView(ui: UI): View {
       info.textContent = isPat ? 'This pad plays a pattern built from samples. It follows the master tempo with no stretching.'
         : !b ? 'No sample loaded.'
         : `${b.duration < 1 ? Math.round(b.duration * 1000) + ' ms' : b.duration.toFixed(2) + ' s'}, ${(b.sampleRate / 1000).toFixed(1)} kHz, ${b.numberOfChannels === 1 ? 'mono' : 'stereo'}, `
-          + (meta.missing ? 'file missing, playing a stand-in' : p.src.t === 'builtin' ? 'built-in' : p.src.t === 'kit' ? 'from kit ' + p.src.kit : 'your sample');
+          + (meta.missing ? 'file missing, playing a stand-in' : p.src.t === 'builtin' ? 'built-in' : p.src.t === 'kit' ? (isLibRef(p.src) ? 'from the library, ' + p.src.kit.split('/').slice(1).join('/') : 'from kit ' + p.src.kit) : 'your sample');
       sampleSec.hidden = isPat; levelSec.querySelector('.field')!.toggleAttribute('hidden', synced);
       loopSec.hidden = !isLoop; patSec.hidden = !isPat;
       stopField.hidden = groupField.hidden = !(isLoop || isPat);
@@ -135,6 +140,7 @@ export function editorView(ui: UI): View {
 }
 
 /* ---------- step sequencer ---------- */
+const LIB = '__library__';
 export function openSequencer(ui: UI, patternId: string): void {
   const { app } = ui;
   const get = () => app.state.patterns.find(p => p.id === patternId);
@@ -169,7 +175,11 @@ export function openSequencer(ui: UI, patternId: string): void {
       const mismatch = p.bpb !== beatsPerBar(app.song.ts);
       fit.hidden = !mismatch;
       p.tracks.forEach((tr, ti) => {
-        const nameBtn = btn({ label: tr.name, cls: 'seq-name ghost', title: `Track ${ti + 1} sound`, onClick: () => pickSheet('Track sound', sources(), JSON.stringify(tr.src), v => {
+        const nameBtn = btn({ label: tr.name, cls: 'seq-name ghost', title: `Track ${ti + 1} sound`, onClick: () => pickSheet('Track sound', [{ value: LIB, label: 'Browse the library', note: 'One shots' }, ...sources()], JSON.stringify(tr.src), v => {
+          if (v === LIB) {
+            openLibrary(ui, { title: 'Sound for this track', action: 'Use', kinds: ['shot'], onPick: item => { const q = get()!; q.tracks[ti] = { ...q.tracks[ti], src: libRef(item) as TrackSrc, name: item.name }; set(q); build(); } });
+            return;
+          }
           const src = JSON.parse(v) as TrackSrc, q = get()!;
           q.tracks[ti] = { ...q.tracks[ti], src, name: srcLabel(src).replace(/^Pad \d+: /, '') }; set(q); build();
         }) });

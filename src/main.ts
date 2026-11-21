@@ -14,7 +14,7 @@ import { layoutFor } from './ui/layout';
 import { UI, View, performBar, editBar, destTabs, gridView, pagesView, scenesView, stripsView, PAD_KEYS } from './ui/views';
 import { PAGE, EditDest } from './store/model';
 import { editorView, openSequencer } from './ui/editor';
-import { setListPane, songInfoPane, tempoPane, scenesPane, ambientPane, bassPane, loopsPane, mixPane, audioPane, midiPane, displayPane, backupPane, diagnosticsPane } from './ui/panes';
+import { setListPane, songInfoPane, tempoPane, scenesPane, ambientPane, bassPane, loopsPane, mixPane, audioPane, midiPane, displayPane, soundsPane, backupPane, diagnosticsPane } from './ui/panes';
 
 async function boot() {
   const root = document.getElementById('app')!;
@@ -48,7 +48,7 @@ async function boot() {
     ], () => ui.section.song, pickSection('song')),
     mix: () => mixPane(ui),
     setup: () => sectioned('Setup', [
-      { id: 'audio', label: 'Audio', build: () => audioPane(ui) }, { id: 'midi', label: 'MIDI', build: () => midiPane(ui) },
+      { id: 'audio', label: 'Audio', build: () => audioPane(ui) }, { id: 'sounds', label: 'Sounds', build: () => soundsPane(ui) }, { id: 'midi', label: 'MIDI', build: () => midiPane(ui) },
       { id: 'display', label: 'Display', build: () => displayPane(ui) }, { id: 'backup', label: 'Backup', build: () => backupPane(ui) },
       { id: 'diagnostics', label: 'Diagnostics', build: () => diagnosticsPane(ui) },
     ], () => ui.section.setup, pickSection('setup')),

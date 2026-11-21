@@ -7,18 +7,25 @@ import { audioKey, StoredAudio } from '../store/migrate';
 import { renderBuiltinKit, BUILTIN_NAMES } from './builtinkit';
 import { PadSetInfo } from './tonicpad';
 import { PadMode } from './tags';
+import { soundFetch, soundIndexes, setLocalFolders, isRemote } from './sounds';
 
 export interface KitPad { pad: number; file: string; name: string; mode?: PadMode; bpm?: number; bars?: number; group?: string }
 export interface KitInfo { name: string; dir: string; pads: KitPad[]; extras?: Array<{ file: string; name: string }> }
 export interface ClickSetInfo { name: string; dir: string; files: Partial<Record<'accent' | 'beat' | 'sub', string>> }
-export interface KitIndex { kits: KitInfo[]; padsets: PadSetInfo[]; clicksets: ClickSetInfo[] }
+/** One sound in the sample library: kits/Library/<cat>/<file>. A loop carries its tempo and length; a spoken cue carries where its vowel starts. */
+export interface LibItem { cat: string; file: string; name: string; type: 'shot' | 'loop' | 'cue'; bpm?: number; beats?: number; secs?: number; anchorMs?: number; note?: string; from?: string }
+export interface KitIndex { kits: KitInfo[]; padsets: PadSetInfo[]; clicksets: ClickSetInfo[]; library: LibItem[] }
+export const LIBRARY = 'Library';
+export const libRef = (i: LibItem): SampleRef => ({ t: 'kit', kit: LIBRARY + '/' + i.cat, file: i.file });
+export const isLibRef = (r: SampleRef | { t: string; kit?: string }): boolean => r.t === 'kit' && !!r.kit && (r.kit === LIBRARY || r.kit.startsWith(LIBRARY + '/'));
 export interface Resolved { buffer: AudioBuffer | null; missing: boolean }
 
+export const kitPath = (dir: string, file: string) => 'kits/' + dir + '/' + file;
 export const kitUrl = (dir: string, file: string) => 'kits/' + dir.split('/').map(encodeURIComponent).join('/') + '/' + encodeURIComponent(file);
 
 export class SampleBank {
   builtin: Array<AudioBuffer | null> = [];
-  index: KitIndex = { kits: [], padsets: [], clicksets: [] };
+  index: KitIndex = { kits: [], padsets: [], clicksets: [], library: [] };
   private cache = new Map<string, Promise<AudioBuffer | null>>();
   constructor(private eng: Engine, private kv: KV) {}
 
@@ -28,17 +35,27 @@ export class SampleBank {
   }
   /** True once the list of kits, pad sets and click sets has arrived. Without it the pads fall back to stand-in sounds. */
   indexLoaded = false;
+  /** The library came with the app (the iOS app, a local build). */
+  bundledLibrary = false;
+  /** The private repository answered with its index. */
+  repoLoaded = false;
+  /** Reads the index that came with the app and, when an access key is set, the private repository's, and joins them.
+   *  What came with the app wins: those files are on the device already. */
   async loadIndex(): Promise<boolean> {
+    const clean = (j: any): KitIndex => ({
+      kits: Array.isArray(j?.kits) ? j.kits.filter((k: any) => k && k.name && Array.isArray(k.pads)) : [],
+      padsets: Array.isArray(j?.padsets) ? j.padsets.filter((k: any) => k && k.name && k.keys) : [],
+      clicksets: Array.isArray(j?.clicksets) ? j.clicksets.filter((k: any) => k && k.name && k.files) : [],
+      library: Array.isArray(j?.library) ? j.library.filter((k: any) => k && k.cat && k.file && k.name) : [],
+    });
     try {
-      const r = await fetch('kits/index.json', { cache: 'no-cache' });
-      const j = r.ok ? await r.json() : {};
-      this.index = {
-        kits: Array.isArray(j.kits) ? j.kits.filter((k: any) => k && k.name && Array.isArray(k.pads)) : [],
-        padsets: Array.isArray(j.padsets) ? j.padsets.filter((k: any) => k && k.name && k.keys) : [],
-        clicksets: Array.isArray(j.clicksets) ? j.clicksets.filter((k: any) => k && k.name && k.files) : [],
-      };
-      this.indexLoaded = r.ok;
-    } catch { this.index = { kits: [], padsets: [], clicksets: [] }; this.indexLoaded = false; }
+      const { app, repo } = await soundIndexes();
+      const a = clean(app), r = clean(repo);
+      setLocalFolders([...a.kits, ...a.padsets, ...a.clicksets].map(k => k.dir.split('/')[0]).concat(a.library.length ? [LIBRARY] : []));
+      const join = <T extends { dir: string }>(x: T[], y: T[]) => [...x, ...y.filter(k => !x.some(q => q.dir === k.dir))];
+      this.index = { kits: join(a.kits, r.kits), padsets: join(a.padsets, r.padsets), clicksets: join(a.clicksets, r.clicksets), library: a.library.length ? a.library : r.library };
+      this.indexLoaded = !!(app || repo); this.bundledLibrary = a.library.length > 0; this.repoLoaded = !!repo;
+    } catch { this.index = { kits: [], padsets: [], clicksets: [], library: [] }; this.indexLoaded = false; this.bundledLibrary = false; this.repoLoaded = false; }
     return this.indexLoaded;
   }
   private key(ref: SampleRef): string {
@@ -50,7 +67,7 @@ export class SampleBank {
   async raw(ref: SampleRef): Promise<{ name: string; data: ArrayBuffer } | null> {
     try {
       if (ref.t === 'audio') { const a = await this.kv.get<StoredAudio>(audioKey(ref.id)); return a ? { name: a.name, data: a.data } : null; }
-      if (ref.t === 'kit') { const r = await fetch(kitUrl(ref.kit, ref.file)); return r.ok ? { name: ref.file, data: await r.arrayBuffer() } : null; }
+      if (ref.t === 'kit') { const r = await soundFetch(kitPath(ref.kit, ref.file)); return r ? { name: ref.file, data: await r.arrayBuffer() } : null; }
     } catch { /* fall through */ }
     return null;
   }
@@ -99,6 +116,10 @@ export class SampleBank {
   status(ref: SampleRef): 'ready' | 'loading' | 'failed' {
     const k = this.key(ref);
     return this.ready.has(k) ? 'ready' : this.failed.has(k) && !this.loading.has(k) ? 'failed' : 'loading';
+  }
+  /** Forget decoded kit and library files that came from the repository (its key was removed), so nothing keeps playing that the device no longer has. */
+  forgetRemote(): void {
+    for (const m of [this.cache, this.ready, this.failed] as Array<Map<string, unknown>>) for (const k of [...m.keys()]) if (k.startsWith('kit:') && isRemote('kits/' + k.slice(4))) m.delete(k);
   }
   /** Try failed downloads again now (the network just came back). */
   retryNow(): void { for (const f of this.failed.values()) f.at = -1e9; }

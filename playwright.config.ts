@@ -16,5 +16,6 @@ export default defineConfig({
     // Safari, the iPad and every iOS browser run on WebKit. The tests tagged @webkit cover what has broken there.
     { name: 'webkit', use: { browserName: 'webkit' }, grep: /@webkit/ },
   ],
-  webServer: { command: 'npx vite --port 5173 --strictPort', url: 'http://localhost:5173/tests/harness.html', reuseExistingServer: true, timeout: 60_000 },
+  // PAD16_SOUNDS=none: the tests run as the public web build does, with no private sounds beside the app. Library tests stand in for the repository.
+  webServer: { command: 'npx vite --port 5173 --strictPort', env: { PAD16_SOUNDS: 'none' }, url: 'http://localhost:5173/tests/harness.html', reuseExistingServer: true, timeout: 60_000 },
 });

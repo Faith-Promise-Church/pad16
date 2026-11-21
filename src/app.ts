@@ -1,6 +1,7 @@
 // The app controller: owns the saved state, the engine, samples and MIDI, and is what the interface talks to.
 import { Engine } from './engine/engine';
-import { SampleBank, KitInfo, ClickSetInfo, kitUrl } from './engine/bank';
+import { SampleBank, KitInfo, ClickSetInfo, kitUrl, kitPath, LibItem, libRef, isLibRef } from './engine/bank';
+import { configureSounds, soundsSetup, soundsError, hasKey, soundFetch, soundKept, isRemote, forgetSounds, SoundsSetup, SoundsState } from './engine/sounds';
 import { SOUND_BY_ID } from './engine/synthkit';
 import { stretchLoop, warmStretch, stretchAmount } from './engine/stretch';
 import { detectTempo } from './engine/detect';
@@ -24,6 +25,8 @@ import { WebClick } from './engine/click';
 
 export interface PadMeta { missing: boolean; stretch: 'none' | 'busy' | 'ready' | 'failed' }
 /** How a scene button should look: waiting for its bar line, the scene now sounding, or the last one launched after pads were changed by hand. */
+/** The access key for the private sounds repository lives on its own, on this device only: it is never part of an exported set. */
+const SOUNDS_KEY = 'sounds';
 export type SceneLook = '' | 'queued' | 'on' | 'last';
 
 export class App {
@@ -100,7 +103,9 @@ export class App {
     });
     window.addEventListener('pagehide', () => this.flush());
 
+    configureSounds((await this.kv.get<Partial<SoundsSetup>>(SOUNDS_KEY).catch(() => undefined)) || {});
     await this.bank.init();
+    this.loadCountWords();
     // samples that failed to download are tried again, on a timer and the moment the network returns
     window.setInterval(() => this.recoverSamples(), 3000);
     window.addEventListener('online', () => { this.bank.retryNow(); this.padRetry.clear(); this.recoverSamples(); });
@@ -217,7 +222,7 @@ export class App {
     if (patch.ts) e.transport.setTs(s.ts);
     if (patch.bpm !== undefined || patch.ts || 'tempoCount' in patch) { e.transport.setBpm(this.pulse); this.restretch(); }
     if (patch.quantize) e.pads.globalQuant = s.quantize;
-    if (patch.click || engineOnly) { e.click.setSettings(s.click); e.transport.countInBars = s.click.countIn; if (patch.click) this.loadClickSamples(); }
+    if (patch.click || engineOnly) { e.click.setSettings(s.click); e.count.on = s.click.spoken !== false; e.transport.countInBars = s.click.countIn; if (patch.click) this.loadClickSamples(); }
     if (patch.sub || engineOnly) e.sub.setSettings(s.sub);
     if (s.tonic.set !== prevSet) setTimeout(() => this.saveForOffline(), 0);
     if (patch.tonic || engineOnly) { e.tonic.setSet(this.bank.index.padsets.find(p => p.name === s.tonic.set) || this.bank.index.padsets[0] || null); e.tonic.setSettings(s.tonic); }
@@ -351,32 +356,125 @@ export class App {
   /** While online, quietly fetch every file the current song could need (kit, click set, all 12 keys of the pad set)
    *  so the service worker has them when the network is gone. The iOS app bundles its files and skips this. */
   async saveForOffline(): Promise<void> {
-    if (isNative() || typeof caches === 'undefined' || !navigator.serviceWorker?.controller) return;
-    const my = ++this.offlineToken, urls = new Set<string>();
+    if (isNative() || typeof caches === 'undefined') return;
+    const my = ++this.offlineToken, paths = new Set<string>(), sw = !!navigator.serviceWorker?.controller;
     // only this app's cache counts: the first version's cache can hold old copies of these files (see sw.js)
     const names = (await caches.keys()).filter(k => k.startsWith('pad16-app-'));
     const inOwnCache = async (url: string) => { for (const n of names) if (await (await caches.open(n)).match(url)) return true; return false; };
+    const encoded = (p: string) => p.split('/').map(encodeURIComponent).join('/');
     const kit = this.bank.index.kits.find(k => k.name === this.song.kit);
-    if (kit) for (const e of [...kit.pads, ...(kit.extras || [])]) urls.add(kitUrl(kit.dir, e.file));
-    // every kit file a pad or one of its pattern tracks points at, whichever kit it lives in
-    const want = (r: SampleRef) => { const k = this.realSample(r); if (k.t === 'kit') urls.add(kitUrl(k.kit, k.file)); };
+    if (kit) for (const e of [...kit.pads, ...(kit.extras || [])]) paths.add(kitPath(kit.dir, e.file));
+    // every kit or library file a pad or one of its pattern tracks points at, wherever it lives
+    const want = (r: SampleRef) => { const k = this.realSample(r); if (k.t === 'kit') paths.add(kitPath(k.kit, k.file)); };
     for (const pad of this.song.pads) {
       want(pad.src);
       const pat = pad.mode === 'pattern' ? this.state.patterns.find(x => x.id === pad.patternId) : undefined;
       if (pat) for (const t of pat.tracks) if (t.src.t !== 'pad' && t.steps.some(Boolean)) want(t.src as SampleRef);
     }
-    const cs = this.clickSet; if (cs) for (const f of Object.values(cs.files)) if (f) urls.add(kitUrl(cs.dir, f));
-    const ps = this.eng.tonic.set; if (ps) for (const k of Object.values(ps.keys)) urls.add(kitUrl(ps.dir, k.file));
-    this.offline = { done: 0, total: urls.size, active: true }; this.emit();
-    for (const u of urls) {
+    const cs = this.clickSet; if (cs) for (const f of Object.values(cs.files)) if (f) paths.add(kitPath(cs.dir, f));
+    const ps = this.eng.tonic.set; if (ps) for (const k of Object.values(ps.keys)) paths.add(kitPath(ps.dir, k.file));
+    for (const p of [...paths]) if (!isRemote(p) && !sw) paths.delete(p);        // files beside the app are kept by the service worker; without one there is nothing to fill
+    this.offline = { done: 0, total: paths.size, active: true }; this.emit();
+    for (const p of paths) {
       if (my !== this.offlineToken) return;
-      try { if (!(await inOwnCache(new URL(u, location.href).href))) { if (!navigator.onLine) break; await fetch(u); } this.offline.done++; } catch { /* try again next launch */ }
+      try {
+        if (isRemote(p)) { if (!(await soundKept(p))) { if (!navigator.onLine) break; if (!(await soundFetch(p))) throw new Error('not fetched'); } }
+        else if (!(await inOwnCache(new URL(encoded(p), location.href).href))) { if (!navigator.onLine) break; await fetch(encoded(p)); }
+        this.offline.done++;
+      } catch { /* try again next launch */ }
       this.emit();
     }
     if (my === this.offlineToken) { this.offline.active = false; this.emit(); }
   }
+  // ---- where the sounds come from ----
+  /** Bundled with the app, connected to the private repository, or what is in the way. */
+  get soundsState(): SoundsState {
+    if (this.bank.bundledLibrary) return 'bundled';
+    if (!hasKey()) return 'no-key';
+    return soundsError() || (this.bank.repoLoaded ? 'connected' : 'unreachable');
+  }
+  get soundsSetup(): SoundsSetup { return soundsSetup(); }
+  /** Save the access key (and repository, if changed) on this device, then read the library again. */
+  async setSounds(patch: Partial<SoundsSetup>): Promise<SoundsState> {
+    const was = soundsSetup(), next = { ...was, ...patch };
+    const dropped = next.repo !== was.repo || next.ref !== was.ref || !next.key;
+    if (dropped) await forgetSounds();
+    configureSounds(next);
+    await this.kv.put(SOUNDS_KEY, soundsSetup()).catch(() => {});
+    await this.reloadSounds(dropped);
+    return this.soundsState;
+  }
+  /** Read the index again and give every pad, the click and the ambient pad another go at their files. */
+  async reloadSounds(dropped = false): Promise<void> {
+    await this.bank.loadIndex();
+    this.bank.retryNow(); this.padRetry.clear();
+    if (dropped) {                                              // the key or the repository changed: nothing decoded from the old one may linger
+      this.bank.forgetRemote();
+      await Promise.all(this.song.pads.map((cfg, i) => (cfg.src.t === 'kit' && isRemote(kitPath(cfg.src.kit, cfg.src.file)) ? this.loadPad(i, cfg) : null)));
+    }
+    this.patchSong({}, true); this.loadClickSamples(); this.loadCountWords();
+    await this.recoverSamples();
+    this.emit();
+  }
+  /** The spoken numbers for the count-in, from the library's Count-in folder ("Count 1" to "Count 10"). */
+  private async loadCountWords(): Promise<void> {
+    if (!this.bank.index.library.some(i => i.type === 'cue')) this.eng.count.clear();
+    for (const item of this.bank.index.library) {
+      const m = item.type === 'cue' && /^Count (\d+)$/.exec(item.name);
+      if (!m) continue;
+      const r = await this.bank.resolve(libRef(item));
+      if (!r.missing && r.buffer) this.eng.count.setWord(+m[1], r.buffer, (item.anchorMs || 0) / 1000);
+    }
+    this.emit();
+  }
+  get library(): LibItem[] { return this.bank.index.library; }
+  /** Fetch every sound that is not on this device yet, so the whole library works with no connection. Web only: the iOS app carries them. */
+  keeping = { done: 0, total: 0, active: false, failed: 0 };
+  async keepAllSounds(): Promise<void> {
+    if (this.keeping.active) return;
+    const paths = new Set<string>(), ix = this.bank.index;
+    for (const i of ix.library) paths.add(kitPath('Library/' + i.cat, i.file));
+    for (const k of ix.kits) for (const e of [...k.pads, ...(k.extras || [])]) paths.add(kitPath(k.dir, e.file));
+    for (const p of ix.padsets) for (const k of Object.values(p.keys)) paths.add(kitPath(p.dir, k.file));
+    for (const c of ix.clicksets) for (const f of Object.values(c.files)) if (f) paths.add(kitPath(c.dir, f));
+    const todo = [...paths].filter(isRemote);
+    this.keeping = { done: 0, total: todo.length, active: true, failed: 0 }; this.emit();
+    for (const p of todo) {
+      if (!this.keeping.active) break;
+      if ((await soundKept(p)) || (await soundFetch(p))) this.keeping.done++; else this.keeping.failed++;
+      this.emit();
+    }
+    this.keeping.active = false; this.emit();
+  }
+  /** Play a library sound once, now, on the bus it will use on a pad: loops on Loops, one shots on Drums. */
+  private auditioning: AudioBufferSourceNode | null = null;
+  get auditioningNow(): boolean { return !!this.auditioning; }
+  async audition(item: LibItem | null): Promise<boolean> {
+    try { this.auditioning?.stop(); } catch { /* already over */ }
+    this.auditioning = null;
+    if (!item) return true;
+    const r = await this.bank.resolve(libRef(item));
+    if (r.missing || !r.buffer) return false;
+    await this.unlock();
+    const src = this.ctx.createBufferSource(); src.buffer = r.buffer;
+    src.connect(this.eng.mixer.input(item.type === 'loop' ? 'loops' : 'drums'));
+    src.start(); this.auditioning = src;
+    src.onended = () => { if (this.auditioning === src) { this.auditioning = null; this.emit(); } try { src.disconnect(); } catch { /* fine */ } };
+    return true;
+  }
+  /** Put a library sound on a pad. A loop arrives with its tempo and length, so it follows the song at once. */
+  async loadLibraryPad(i: number, item: LibItem): Promise<void> {
+    const t = padTarget(this.song.pads, i), cur = this.song.pads[t], loop = item.type === 'loop' && !!item.bpm && !!item.beats;
+    const cfg: PadConfig = {
+      ...defaultPad(t), color: cur.color, group: cur.group, volume: cur.volume, quantize: cur.quantize,
+      name: item.name, src: libRef(item),
+      mode: loop ? 'loop' : 'oneshot', sync: loop ? 'stretch' : 'off', sourceBpm: loop ? item.bpm! : 0, lengthBeats: loop ? item.beats! : 0, conf: loop ? 1 : 0,
+    };
+    this.song.pads[t] = cfg;
+    await this.loadPad(t, cfg);
+    this.changed();
+  }
 
-  /* ---------- pads ---------- */
   padName(i: number): string {
     const c = this.song.pads[i];
     if (c.name) return c.name;
