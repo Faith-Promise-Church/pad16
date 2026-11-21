@@ -7,7 +7,7 @@ Branch: `v3` (from `live-rig`). Never push to `main`. `live-rig` is the gig buil
 | Phase | What | State |
 | --- | --- | --- |
 | 1. Structure | Perform and Edit modes, five Edit destinations, scenes, layouts for iPad, folding phone and phone | Done on `v3`. Not yet played on a device. |
-| 2. Sound | Effects (reverb, delay, tape), sample library browser, the new sample content | Not started |
+| 2. Sound | Sample library and its browser, spoken count-in, private home for the sounds. Then effects (reverb, delay, tape) | Library, browser and count-in done on `v3`. Effects not started. |
 | 3. Ship | TestFlight internal build for iPad, iPhone and the folding iPhone | Not started. Needs Xcode. |
 | Track 0 | First compile of the iOS app on the Mac | Blocked: the Mac needs macOS 26.6 or newer and about 60 GB free for Xcode 27.1 |
 
@@ -19,6 +19,14 @@ Phase 1, in short (decisions 92 to 111):
 - Layout picked from the window size: iPad both ways, Split View, a folding phone opened both ways, phones both ways.
 - Pads light while sounding and show loop position as a ring. Barlow in every build.
 - Preview at `/v3/` once the `github-pages` environment allows the branch `v3`.
+
+Phase 2 so far (decisions 112 to 122):
+
+- A private repository, `Faith-Promise-Church/pad16-sounds`, is the home of every sound: the five kit folders and a library of 350 files in 15 categories (cajon, shaker, tambourine, hand drums, Latin percussion, kicks, snares, claps and snaps, hats and cymbals, toms, drum machines, lo-fi, transitions, clicks, the spoken count-in).
+- The build copies the sounds in when the sounds repository sits beside this one, so the iOS app carries them. The web version reads them with an access key entered once in Edit, Setup, Sounds, and keeps what it fetches.
+- Sound library browser on every pad and in every pattern track: categories, search, hear, use. Loops arrive with tempo and length.
+- Spoken count-in over the click, with a switch per song.
+- Still to do in this phase: effects, and the content rows still open (brush sounds and grooves, conga and bongo patterns, 6/8 shaker and tambourine, 808 snare, rim and cowbell, djembe bass, vinyl crackle).
 
 ## Earlier work (the live rig)
 
@@ -63,10 +71,13 @@ Phase 1, in short (decisions 92 to 111):
 
 ## Not verified here
 
-- Version 3 on any real device. Everything in it was built and checked in desktop Chrome at each device's point size. Touch feel, fader length under a thumb, legibility under stage light and the safe areas are for the iPad and the phone: see section 8 of `docs/HARDWARE_TEST.md`.
+- Version 3 on any real device. Everything in it was built and checked in desktop Chrome at each device's point size. Touch feel, fader length under a thumb, legibility under stage light and the safe areas are for the iPad and the phone: see section 9 of `docs/HARDWARE_TEST.md`.
 - The folding iPhone layout. Its sizes are Apple's published points; it needs the iOS build made with the SDK that knows the device.
 - The starter scenes are a guess (decision 98).
 - The iOS app has never been compiled. Xcode is not installed on the Mac. `HostClock.swift`, `MidiEngine.swift`, `BleReconnector.swift` and `CueClick.swift` type-check against the macOS SDK; `AudioSessionController.swift` and `Pad16NativePlugin.swift` could not be checked.
+- The library by ear. Every loop tempo, one shot name and pick was made by measurement (decision 122).
+- The spoken count-in on a real device, and in the iOS app when the click is sent to the cue route natively: the words go to the web click bus, which has not been checked against that route.
+- The access key against the real private repository. The browser tests use a stand-in that answers the way GitHub does.
 - Everything in `docs/HARDWARE_TEST.md`.
 - Signalsmith Stretch on a real iPad. It now runs in a Worker and is tested in Playwright's WebKit (the engine Safari uses), which is where it failed before. How it sounds on the shaker at 66 and 68 BPM (15 to 18 percent slower) is for ears.
 - How the 6/8 shaker pattern and the 6/8 cajon loops sound. They were built by measurement.
@@ -82,7 +93,9 @@ Phase 1, in short (decisions 92 to 111):
 ## Exact next step
 
 1. Allow the preview: GitHub, Settings, Environments, github-pages, Deployment branches and tags, add `v3`. Then re-run the "Deploy to GitHub Pages" run for `v3`. The preview is then at `/v3/`.
-2. Play a set from Perform on the iPad and work through section 8 of `docs/HARDWARE_TEST.md`. Change the starter scenes to the real ones.
-3. When it has been played: merge `v3` into `live-rig`.
-4. For the iOS build: update the Mac to macOS 26.6 or newer, free about 60 GB, install Xcode 27.1. Then in the Mac clone: `git checkout v3 && npm install && npm run build:ios`, open `ios/App/App.xcodeproj`, set the team, build.
-5. Phase 2 (sound) can start in parallel with 2 to 4.
+2. Make an access key for the sounds: GitHub, Settings, Developer settings, Fine-grained tokens. Resource owner Faith-Promise-Church, only the repository `pad16-sounds`, Contents read-only. Enter it on the iPad in Edit, Setup, Sounds.
+3. Listen through the library and say what is misnamed, at the wrong tempo, or not worth keeping.
+4. Play a set from Perform on the iPad and work through sections 9 and 10 of `docs/HARDWARE_TEST.md`. Change the starter scenes to the real ones.
+5. On the Mac, clone the sounds beside the app so local and iOS builds carry them: in `~/Documents/Claude Code Codebase/pad16`, `git clone https://github.com/Faith-Promise-Church/pad16-sounds`.
+6. For the iOS build: update the Mac to macOS 26.6 or newer, free about 60 GB, install Xcode 27.1. Then in the Mac clone: `git checkout v3 && npm install && npm run build:ios`, open `ios/App/App.xcodeproj`, set the team, build.
+7. Effects (reverb, delay, tape), then the open content rows.

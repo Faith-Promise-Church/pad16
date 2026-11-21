@@ -156,6 +156,11 @@ Each view, dark then daylight. Captured by `scripts/make-screens.mjs` from the b
 | Folding phone open, portrait | ![](screens/edit-pads-fold-portrait-dark.png) | ![](screens/edit-pads-fold-portrait-light.png) |
 | Phone | ![](screens/edit-pads-phone-dark.png) | ![](screens/edit-pads-phone-light.png) |
 | Pattern sequencer | ![](screens/sequencer-landscape-dark.png) | ![](screens/sequencer-landscape-light.png) |
+| Sound library, iPad landscape | ![](screens/library-landscape-dark.png) | ![](screens/library-landscape-light.png) |
+| Sound library, iPad portrait | ![](screens/library-portrait-dark.png) | ![](screens/library-portrait-light.png) |
+| Sound library, phone | ![](screens/library-phone-dark.png) | ![](screens/library-phone-light.png) |
+
+The sound library is one sheet, opened from wherever a sound is being chosen. Categories run in a row that scrolls sideways, each with its count. A row is two targets: the left part plays the sound (and stops it), the button on the right loads it. Loops are marked and show their tempo and length; one shots show their length. It remembers the category and search it was last left on.
 
 ### Edit, Loops
 
@@ -190,6 +195,7 @@ Each view, dark then daylight. Captured by `scripts/make-screens.mjs` from the b
 | Section | Dark | Daylight |
 | --- | --- | --- |
 | Audio | ![](screens/setup-audio-landscape-dark.png) | ![](screens/setup-audio-landscape-light.png) |
+| Sounds (the web version, before a key is entered) | ![](screens/setup-sounds-landscape-dark.png) | ![](screens/setup-sounds-landscape-light.png) |
 | MIDI | ![](screens/setup-midi-landscape-dark.png) | ![](screens/setup-midi-landscape-light.png) |
 | Display | ![](screens/setup-display-landscape-dark.png) | ![](screens/setup-display-landscape-light.png) |
 | Backup | ![](screens/setup-backup-landscape-dark.png) | ![](screens/setup-backup-landscape-light.png) |

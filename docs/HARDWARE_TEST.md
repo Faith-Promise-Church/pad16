@@ -84,7 +84,7 @@ Rig: iPad, Nord Stage 4, WIDI Master, wired USB interface (ESI Gigaport HD+ or F
 - [ ] **30-minute soak**: transport running, a loop and a pattern playing, pad on, play bass throughout. Dropouts or glitches: ____. Diagnostics "worst late tick": ____ ms. Battery used: ____ percent. iPad warm?
 - [ ] Turn on Airplane Mode (then Bluetooth back on): everything still works with no network.
 
-## 8. Perform, scenes and the screen sizes
+## 9. Perform, scenes and the screen sizes
 
 - [ ] The app opens in Perform. Play one whole song without touching Edit: start, tap tempo, tempo up and down by 1, click, pads, Ambient and Bass on and off and their faders.
 - [ ] Scenes at stage tempo: press Chorus mid-bar. The button blinks amber and says Next bar; on the bar line the Chorus pads start together and the others stop. No flam between pads, no gap.
@@ -96,3 +96,18 @@ Rig: iPad, Nord Stage 4, WIDI Master, wired USB interface (ESI Gigaport HD+ or F
 - [ ] iPad in portrait and landscape, and Split View at half width: nothing is cut off and the pads stay square.
 - [ ] iPhone upright and on its side: every control in Perform can be hit with a thumb.
 - [ ] Read the Perform screen from a metre away under stage light: tempo, bar and beat, the scene that is on.
+
+## 10. Sound library and the spoken count-in
+
+- [ ] Edit, Setup, Sounds: paste the access key and press Connect. It says Connected and how many sounds are in the library.
+- [ ] A wrong or expired key says so, and the kits published with the app still play.
+- [ ] Edit, Pads, pick a pad, Sound library. Scroll the categories, search for "shaker", tap a row to hear it, tap again to stop it.
+- [ ] Use a loop: it lands on the pad with its tempo, and follows the song when the tempo changes.
+- [ ] Use a one shot in a pattern track (Edit pattern, tap the track name, Browse the library). The pattern plays it.
+- [ ] Keep every sound on this device, then switch to airplane mode and reload: the library pads still play.
+- [ ] By ear, per category: which names are wrong, which loops are at the wrong tempo or start late, which sounds are not worth keeping: ________
+- [ ] Count-in of 1 bar at 70, 100 and 140: the numbers sit on the click, not ahead of it or behind it. Note any word that is early or late: ________
+- [ ] Count-in in 6/8 slow (counts six) and fast (counts the two pulses).
+- [ ] The count goes where the click goes (in-ears, not the room) in Split and Multi-out.
+- [ ] "Say the numbers" off: click only.
+

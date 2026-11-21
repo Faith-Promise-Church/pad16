@@ -74,6 +74,16 @@ kits/
 
 See [SAMPLES.md](SAMPLES.md) for the full convention, the prep script, pad sets and a recording guide.
 
+### The sound library and the private sounds repository
+
+The sample library (and, in time, every kit) lives in a separate private repository, `Faith-Promise-Church/pad16-sounds`, because most of it is licensed for our own use and may not be published. This repository and its site are public.
+
+- **iOS and local builds.** Clone the sounds repository beside this one (`../pad16-sounds`), or point `PAD16_SOUNDS` at it. `npm run dev`, `npm run build` and `npm run build:ios` then include the sounds, and the app needs nothing set up on the device. `PAD16_SOUNDS=none` builds without them.
+- **The web version.** Enter an access key once in Edit, Setup, Sounds: a GitHub fine-grained token for that one repository with Contents set to read-only. The key stays on the device. Sounds are fetched as they are used and kept for offline play.
+- **Adding to the library.** Put files in `kits/Library/<Category>/` in the sounds repository. A loop is named with its tempo and length (`Shaker Loop 8 92bpm 4bar.wav`); anything else is a one shot. Run `npm run kits` here to rewrite its index, then commit and push there.
+
+In the app: the "Sound library" button on a pad (Edit, Pads), or "Browse the library" in a pattern track's sound list.
+
 ## Develop
 
 Needs Node 22.18 or newer.
@@ -84,7 +94,7 @@ npm run dev          # http://localhost:5173
 npm test             # unit tests (Vitest)
 npm run test:e2e     # offline render tests and smoke tests (Playwright, needs Chrome or `npx playwright install chromium`)
 npm run test:all     # typecheck, unit tests, browser tests
-npm run build        # indexes kits and builds dist/
+npm run build        # indexes kits and builds dist/ (with the private sounds, when ../pad16-sounds is there)
 ```
 
 Layout: `src/engine/` (clock, scheduler, transport, loops, stretch, patterns, click, sub synth, tonic pad, mixer), `src/midi/`, `src/store/`, `src/ui/`, `src/native/` (JavaScript side of the iOS plugin), `plugins/pad16-native/` (Swift), `ios/` (Xcode project), `tests/`.
